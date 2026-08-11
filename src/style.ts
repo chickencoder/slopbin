@@ -1,6 +1,7 @@
 // One stylesheet. Pure CSS, no build step. 2005 at heart, 2025 in font.
 export const CSS = `
 :root {
+  color-scheme: light; /* the site is white-on-purpose; stops dark-mode UA styles */
   --link: #0000ee;
   --visited: #551a8b;
   --ink: #111;
@@ -56,6 +57,8 @@ hr { border: none; border-top: 1px solid var(--rule); }
 form.stack label { display: block; margin-top: 0.75rem; }
 input[type=text], input[type=password], textarea {
   font: inherit;
+  color: var(--ink);
+  background: #fff;
   width: 100%;
   max-width: 24rem;
   padding: 0.3rem;
@@ -64,6 +67,7 @@ input[type=text], input[type=password], textarea {
 textarea { max-width: 100%; height: 5rem; }
 button {
   font: inherit;
+  color: var(--ink);
   margin-top: 0.75rem;
   padding: 0.3rem 0.9rem;
   border: 1px solid #888;
