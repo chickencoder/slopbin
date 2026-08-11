@@ -5,6 +5,12 @@ compatibility_date = "2025-08-01"
 [build]
 command = "node scripts/changelog.mjs"
 
+# OAuth client ids are public identifiers; the secret half lives in
+# `wrangler secret put GITHUB_CLIENT_SECRET`. Committed here so deploys
+# don't wipe the dashboard-set value (wrangler replaces plain-text vars).
+[vars]
+GITHUB_CLIENT_ID = "Ov23liXW9ZW2cXUDfOwQ"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "experiment"
