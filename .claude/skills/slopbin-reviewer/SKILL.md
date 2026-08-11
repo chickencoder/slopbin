@@ -14,7 +14,8 @@ You make one decision: **is this pull request safe to merge?**
 
 A Claude Code routine operates this skill on a schedule. There is no CI in this
 repository. Thus you get the pull request and write the verdict yourself with
-the `gh` command.
+the `gh` command. Read the chapter "The merge" for what you do after the
+verdict, and for the limits on it.
 
 You are not a judge of quality. It is not your function to decide if the change
 is interesting, clever, or necessary. The contributor made that decision. A
@@ -152,10 +153,87 @@ Write one comment for each pull request in each session. If you find your
 comment for the same version of the pull request, do not write a second comment.
 Write a new comment only when the contributor pushes a new commit.
 
-Do not merge a pull request. Do not push to the branch of the contributor. Do
-not change the files in the pull request. A maintainer does the merge after your
-review.
+## The merge
 
-At the end of the session, write a short report: the pull requests that you
-read, the verdict for each one, and the pull requests that need the attention of
-a maintainer.
+The maintainer gives you the authority to merge a pull request with the verdict
+APPROVED, but only in the conditions of level 1 below. GitHub has no rule that
+stops you. Thus these conditions are your responsibility.
+
+### Level 1: you merge it
+
+Merge the pull request if the verdict is APPROVED **and** each of these
+conditions is true:
+
+- it changes fewer than 150 lines
+- it does not change `src/auth.ts`
+- it does not add or change a file in `migrations/`
+- it does not change the webhook route or the session middleware in
+  `src/index.ts`
+- it is not the first pull request from this contributor
+
+Use this command:
+
+```sh
+gh pr merge <number> --squash --delete-branch --match-head-commit <sha>
+```
+
+The `<sha>` is the head commit that you read in this review. Get it with
+`gh pr view <number> --json headRefOid`. The `--match-head-commit` part is
+necessary. It stops the merge if the contributor pushed a new commit after your
+review. Without it, a person can get an approval for safe code and then push
+different code before the merge.
+
+If the command fails because the head commit is different, do not merge. Read
+the new version of the pull request from the start.
+
+### Level 2: a maintainer merges it
+
+If the verdict is APPROVED but one condition of level 1 is not true, do not
+merge. Do these two things:
+
+```sh
+gh pr comment <number> --body-file <file>
+gh pr edit <number> --add-label needs-human
+```
+
+In the comment, write why a maintainer must look at the pull request. Example:
+"This change is safe, but it changes the authentication code. Thus a maintainer
+does the merge."
+
+The maintainer finds this work with `gh pr list --label needs-human`.
+
+### Never
+
+- Do not merge a pull request that changes the infrastructure. That pull request
+  has the verdict CHANGES REQUESTED.
+- Do not merge a pull request with the verdict CHANGES REQUESTED.
+- Do not merge a pull request that you did not read completely in this session.
+- Do not push to the branch of the contributor. Do not change the files in the
+  pull request. Do not push to `main`.
+
+## The deploy
+
+A merge does not change the live site, because this repository has no CI. If you
+merged one or more pull requests in this session, deploy the site:
+
+```sh
+git checkout main && git pull
+npm run typecheck
+npm run deploy
+```
+
+Deploy only from `main`, and only after the typecheck completes with no errors.
+If the typecheck fails, do not deploy. Write in your report which merge made the
+failure.
+
+If the deploy fails because this machine has no Cloudflare token, write that
+fact in your report and tell the maintainer to run `npm run deploy`.
+
+## The report
+
+At the end of the session, write a short report:
+
+- the pull requests that you read, and the verdict for each one
+- the pull requests that you merged
+- the pull requests with the label `needs-human`, and why
+- the result of the deploy

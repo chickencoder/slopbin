@@ -175,8 +175,10 @@ Then make sure that the data of the users is still correct.
 - Open the pull request with `gh pr create`.
 - In the description, write what you made and why it is fun. Write it for a
   user of the site, not only for an engineer. Give the steps to test it.
-- The reviewer routine will read the pull request and write a comment. Do not
-  merge your own pull request. A maintainer does the merge.
+- The reviewer routine will read the pull request, write a comment, and do the
+  merge if the change is safe and small. Do not merge your own pull request. Do
+  not review your own pull request. Your function is the invention, and the
+  function of the reviewer is the control.
 
 ## You can change the infrastructure
 

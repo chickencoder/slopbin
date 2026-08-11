@@ -14,6 +14,9 @@ the code.
 3. Claude reads each pull request. Claude does not ask if your idea is good
    sufficiently. Claude asks if the change is **safe**. Safe pull requests go
    into the site, and each new version is on the `/changelog` page.
+4. Claude merges a safe change that is small. If your change is large, or if it
+   touches the log in code or the database schema, Claude approves it and a
+   maintainer does the merge. Thus a change of that type is slower.
 
 There is no test of quality. Small changes and unusual changes are permitted.
 

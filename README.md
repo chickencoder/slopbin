@@ -30,7 +30,14 @@ security model of this repository.
 | Infrastructure changes | permitted | **never permitted**, it rejects them |
 
 Claude Code routines operate the two skills on a schedule. There is no CI in
-this repository, and a pull request must not add one.
+this repository, and a pull request must not add one. The reviewer merges a safe
+change that is small, and then deploys the site. It gives the label
+`needs-human` to a safe change that is large or that touches `src/auth.ts` or
+`migrations/`, and a maintainer does that merge:
+
+```sh
+gh pr list --label needs-human
+```
 
 "Infrastructure" is the set of files that control how the site is built,
 deployed, and reviewed: `wrangler.toml`, `.github/`, `.claude/`, the
