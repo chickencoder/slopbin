@@ -63,6 +63,7 @@ app.get("/", (c) => {
   <li>there are no likes, no follows, and no algorithm. the feed shows the newest post first.</li>
   <li>each post has its own link. select the time of a post, then send that link to a different person.</li>
   <li>there is one <a href="/peel">golden banana peel</a>. one user holds it, and gives it to a different user.</li>
+  <li>users write poems together on <a href="/compost">the compost heap</a>. you add one line, and you see only the line above your own.</li>
   <li>that is the full website. for now.</li>
 </ul>
 
@@ -267,9 +268,15 @@ app.get("/feed", async (c) => {
     ? `<p class="faint">🍌 <a href="/peel">the golden banana peel</a> is in the hand of <a href="/u/${esc(hold.holder)}">${esc(hold.holder)}</a>.</p>`
     : `<p class="faint">🍌 <a href="/peel">the golden banana peel</a> is at the bottom of the bin. anybody can take it.</p>`;
 
+  const { scraps } = await openHeap(c.env.DB);
+  const compostLead = scraps.length
+    ? `<p class="faint">🥬 <a href="/compost">the compost heap</a> has ${scraps.length} of ${HEAP_SIZE} lines. add the next line.</p>`
+    : `<p class="faint">🥬 <a href="/compost">the compost heap</a> is empty. write the first line of the next poem.</p>`;
+
   const body = `
 <h1>the bin</h1>
 ${peelLead}
+${compostLead}
 <form class="stack" method="post" action="/posts">
   <textarea name="body" maxlength="500" placeholder="write a maximum of 500 characters" required></textarea>
   <button type="submit">post</button>
@@ -507,6 +514,239 @@ app.post("/peel/pass", async (c) => {
     ).bind(target.id, user.id, note, t),
   ]);
   return c.redirect("/peel");
+});
+
+// ---- the compost heap ----
+// A heap is a poem that many hands write together. Each user adds one scrap of
+// text, and sees only the scrap above their own. Thus nobody knows the shape of
+// the poem until the heap is full. Twelve scraps seal the heap, and then all
+// users read it from the first scrap to the last one.
+
+const HEAP_SIZE = 12; // scraps in a full heap
+const HEAP_STALE = 60 * 60 * 24; // a heap with no new scrap for a day goes cold
+
+interface Heap {
+  id: number;
+  started_at: number;
+  sealed_at: number | null;
+  reason: string | null;
+}
+
+interface Scrap {
+  id: number;
+  body: string;
+  created_at: number;
+  user_id: number;
+  username: string;
+}
+
+const HEAP_SQL = "SELECT id, started_at, sealed_at, reason FROM compost_heaps";
+
+async function heapScraps(db: D1Database, heapId: number): Promise<Scrap[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT s.id, s.body, s.created_at, s.user_id, u.username
+       FROM compost_scraps s JOIN users u ON u.id = s.user_id
+       WHERE s.heap_id = ? ORDER BY s.id`
+    )
+    .bind(heapId)
+    .all<Scrap>();
+  return results;
+}
+
+/**
+ * The heap that takes scraps now, with the scraps that are on it. A heap that
+ * nobody fed for a day is cold: the site seals it and starts a new heap. Thus
+ * the machine never stops, in the same manner as the peel.
+ */
+async function openHeap(db: D1Database): Promise<{ heap: Heap; scraps: Scrap[] }> {
+  const open = await db
+    .prepare(`${HEAP_SQL} WHERE sealed_at IS NULL ORDER BY id DESC LIMIT 1`)
+    .first<Heap>();
+
+  if (open) {
+    const scraps = await heapScraps(db, open.id);
+    const last = scraps[scraps.length - 1];
+    if (!last || now() - last.created_at <= HEAP_STALE) return { heap: open, scraps };
+    await db
+      .prepare("UPDATE compost_heaps SET sealed_at = ?, reason = 'cold' WHERE id = ? AND sealed_at IS NULL")
+      .bind(last.created_at + HEAP_STALE, open.id)
+      .run();
+  }
+
+  const fresh = await db
+    .prepare(`INSERT INTO compost_heaps (started_at) VALUES (?) RETURNING id, started_at, sealed_at, reason`)
+    .bind(now())
+    .first<Heap>();
+  return { heap: fresh!, scraps: [] };
+}
+
+/** The full poem of a sealed heap. */
+function heapPoem(scraps: Scrap[]): string {
+  return `<div class="poem">
+${scraps
+  .map(
+    (s) =>
+      `<p class="scrap">${esc(s.body)}<br><span class="meta"><a href="/u/${esc(s.username)}">${esc(s.username)}</a></span></p>`
+  )
+  .join("\n")}
+</div>`;
+}
+
+function heapTitle(h: { id: number }): string {
+  return `heap #${h.id}`;
+}
+
+const COMPOST_MESSAGES: Record<string, string> = {
+  twice: "you put the last scrap on this heap. wait for a different user. a heap needs many hands.",
+  empty: "a scrap with no text is not a scrap.",
+};
+
+app.get("/compost", async (c) => {
+  const viewer = c.get("user");
+  const { heap, scraps } = await openHeap(c.env.DB);
+  const last = scraps[scraps.length - 1];
+  const mine = !!viewer && last?.user_id === viewer.id;
+
+  const { results: sealed } = await c.env.DB.prepare(
+    `SELECT h.id, h.sealed_at, h.reason,
+            COUNT(s.id) AS scraps, COUNT(DISTINCT s.user_id) AS hands
+     FROM compost_heaps h JOIN compost_scraps s ON s.heap_id = h.id
+     WHERE h.sealed_at IS NOT NULL
+     GROUP BY h.id ORDER BY h.sealed_at DESC, h.id DESC LIMIT 20`
+  ).all<{ id: number; sealed_at: number; reason: string; scraps: number; hands: number }>();
+
+  const newest = sealed[0] ? await heapScraps(c.env.DB, sealed[0].id) : [];
+
+  const box = last
+    ? `<div class="heap-box">
+  <p class="faint">the scrap on top of ${esc(heapTitle(heap))}, by <a href="/u/${esc(last.username)}">${esc(last.username)}</a>:</p>
+  <p class="top-scrap">${esc(last.body)}</p>
+  <p class="faint">${scraps.length} of ${HEAP_SIZE} scraps. the scraps below this one are covered.</p>
+</div>`
+    : `<div class="heap-box empty">
+  <p class="top-scrap faint">🥬</p>
+  <p>${esc(heapTitle(heap))} is empty. the first scrap is the first line of the poem.</p>
+</div>`;
+
+  let action: string;
+  if (!viewer) {
+    action = `<p><a href="/login">log in with github</a> to add a scrap.</p>`;
+  } else if (mine) {
+    action = `<p class="faint">your scrap is on top. wait for a different user to cover it.</p>`;
+  } else {
+    action = `<form class="stack" method="post" action="/compost">
+  <input type="text" name="body" placeholder="one line, a maximum of 120 characters" maxlength="120" autocomplete="off" required>
+  <button type="submit">put this scrap on the heap</button>
+</form>`;
+  }
+
+  const err = COMPOST_MESSAGES[c.req.query("e") ?? ""];
+
+  const body = `
+<h1>the compost heap</h1>
+<p>a heap is a poem that many users write together. you add one line, and you
+see only the line above your own. at ${HEAP_SIZE} lines the heap is full, the
+site seals it, and all users read the poem from the top to the bottom.</p>
+${err ? `<p class="error">${esc(err)}</p>` : ""}
+${c.req.query("ok") ? `<p class="notice">your scrap is on the heap. it is covered when the next user adds a line.</p>` : ""}
+${box}
+${action}
+<p class="faint">rules of the heap: one line at a time, and no user puts two
+scraps on a heap in sequence. a heap that nobody feeds for a day goes cold, and
+the site seals it in the condition that it has.</p>
+<hr>
+<h2>the bags</h2>
+${
+  sealed.length
+    ? `<p class="faint">${sealed.length} sealed heap${sealed.length === 1 ? "" : "s"}. this is the newest one.</p>
+<h3><a href="/compost/${sealed[0].id}">${esc(heapTitle(sealed[0]))}</a></h3>
+<p class="faint">${sealed[0].scraps} scraps by ${sealed[0].hands} user${sealed[0].hands === 1 ? "" : "s"} &middot; sealed ${timeAgo(sealed[0].sealed_at)}</p>
+${heapPoem(newest)}
+${
+  sealed.length > 1
+    ? `<p class="faint">older heaps: ${sealed
+        .slice(1)
+        .map((h) => `<a href="/compost/${h.id}">#${h.id}</a>`)
+        .join(" &middot; ")}</p>`
+    : ""
+}`
+    : `<p class="faint">no heap is sealed at this time. the first poem is in
+progress now, and you can put a line in it.</p>`
+}
+`;
+  return c.html(layout({ title: "the compost heap", body, username: viewer?.username }));
+});
+
+app.post("/compost", async (c) => {
+  const user = requireUser(c);
+  if (!user) return c.redirect("/login");
+
+  const form = await c.req.parseBody();
+  const scrap = String(form.body ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+  if (!scrap) return c.redirect("/compost?e=empty");
+
+  const { heap, scraps } = await openHeap(c.env.DB);
+  const last = scraps[scraps.length - 1];
+  if (last && last.user_id === user.id) return c.redirect("/compost?e=twice");
+  if (scraps.length >= HEAP_SIZE) return c.redirect("/compost");
+
+  await c.env.DB.prepare(
+    "INSERT INTO compost_scraps (heap_id, user_id, body, created_at) VALUES (?, ?, ?, ?)"
+  )
+    .bind(heap.id, user.id, scrap, now())
+    .run();
+
+  if (scraps.length + 1 >= HEAP_SIZE) {
+    // This hand filled the heap. The site seals it, and this user is the first
+    // person who reads the full poem.
+    await c.env.DB.prepare(
+      "UPDATE compost_heaps SET sealed_at = ?, reason = 'full' WHERE id = ? AND sealed_at IS NULL"
+    )
+      .bind(now(), heap.id)
+      .run();
+    return c.redirect(`/compost/${heap.id}`);
+  }
+  return c.redirect("/compost?ok=1");
+});
+
+// ---- one sealed heap: a poem that you can send to a different person ----
+app.get("/compost/:id", async (c) => {
+  const viewer = c.get("user");
+  const id = Number(c.req.param("id"));
+
+  const heap =
+    Number.isSafeInteger(id) && id > 0
+      ? await c.env.DB.prepare(`${HEAP_SQL} WHERE id = ?`).bind(id).first<Heap>()
+      : null;
+
+  if (!heap || heap.sealed_at === null) {
+    // An open heap is not for reading. Its scraps are covered.
+    if (heap) return c.redirect("/compost");
+    return c.html(
+      layout({
+        title: "not found",
+        body: `<h1>this heap does not exist</h1>
+<p>look at <a href="/compost">the compost heap</a> for the heaps that do exist.</p>`,
+        username: viewer?.username,
+      }),
+      404
+    );
+  }
+
+  const scraps = await heapScraps(c.env.DB, heap.id);
+  const hands = new Set(scraps.map((s) => s.user_id)).size;
+
+  const body = `
+<h1>${esc(heapTitle(heap))}</h1>
+<p class="faint">${scraps.length} scrap${scraps.length === 1 ? "" : "s"} by ${hands} user${hands === 1 ? "" : "s"} &middot;
+sealed ${timeAgo(heap.sealed_at)} &middot;
+${heap.reason === "cold" ? "this heap went cold" : "this heap became full"}</p>
+${scraps.length ? heapPoem(scraps) : `<p class="faint">this heap has no scraps.</p>`}
+<hr>
+<p class="faint"><a href="/compost">the compost heap</a> &middot; <a href="/feed">the bin</a></p>
+`;
+  return c.html(layout({ title: heapTitle(heap), body, username: viewer?.username }));
 });
 
 // ---- profiles ----

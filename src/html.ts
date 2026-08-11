@@ -60,6 +60,7 @@ export function layout(opts: {
     ? `<nav>
         <a href="/feed">feed</a>
         <a href="/peel">the peel</a>
+        <a href="/compost">the heap</a>
         <a href="/leaderboard">leaderboard</a>
         <a href="/how">contribute</a>
         <a href="/u/${esc(username)}">${esc(username)}</a>
