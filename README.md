@@ -1,6 +1,6 @@
-# experiment
+# slopbucket
 
-A very small social website. Invite-only, text posts, blue links. Built on
+A tiny social website. Invite-only, text posts, blue links. Built on
 Cloudflare Workers with as little as possible: [Hono](https://hono.dev) for
 routing, D1 for storage, server-rendered HTML, one pure-CSS stylesheet, zero
 client-side JavaScript.

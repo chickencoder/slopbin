@@ -45,33 +45,42 @@ app.get("/style.css", (c) =>
 app.get("/", (c) => {
   const user = c.get("user");
   const body = `
-<h1>experiment</h1>
-<p>a very small social website. here is everything it does:</p>
+<div class="home">
+<h1>slopbucket</h1>
+<p class="tagline">a tiny social website. lovingly under-engineered.</p>
+
+<p>here is everything slopbucket does:</p>
 <ul>
-  <li>you post text. other people read it. <a href="/feed">that's the feed</a>.</li>
-  <li>it is invite only. every user gets <b>3 invites</b>.</li>
-  <li>that's it. on purpose.</li>
+  <li>you post text into <a href="/feed">the bucket</a>. other people read it.</li>
+  <li>it is invite only. every user gets <b>3 invites</b>. choose wisely, their slop is on you.</li>
+  <li>that's it. no likes, no follows, no algorithm. the feed is just time, going backwards.</li>
 </ul>
+
 <h2>the actual point</h2>
 <p>
-  this site is deliberately basic — but it's
-  <a href="https://github.com/chickencoder/experiment">open source</a>, and
-  anyone here can change it. want profiles? realms? communities? a dark theme?
-  something nobody has thought of? <a href="/how">send a pull request</a>.
+  slopbucket ships embarrassingly basic — on purpose. but it's
+  <a href="https://github.com/chickencoder/experiment">open source</a>, and anyone
+  here can change it. want profiles? realms? communities? a dark theme? something
+  no website has ever had? <a href="/how">send a pull request</a>.
 </p>
 <p>
-  every PR is reviewed by Claude. safe and interesting changes get merged and
-  deployed. the <a href="/leaderboard">leaderboard</a> tracks who has shipped
-  the most merged PRs.
+  every PR gets reviewed by Claude. safe and interesting changes get merged and
+  deployed for everyone. the <a href="/leaderboard">leaderboard</a> is the only
+  scoreboard here: one point per merged PR.
 </p>
-<p>the site is whatever its users build it into.</p>
+<p>
+  in other words: this is the worst slopbucket will ever be.
+  what it becomes is up to the people in it.
+</p>
+
 ${
   user
-    ? `<p><a href="/feed">go to the feed &raquo;</a></p>`
+    ? `<p><a href="/feed">go to the bucket &raquo;</a></p>`
     : `<p><a href="/login">log in</a> &middot; <a href="/signup">sign up with an invite code</a></p>`
 }
+</div>
 `;
-  return c.html(layout({ title: "experiment", body, username: user?.username }));
+  return c.html(layout({ title: "slopbucket", body, username: user?.username }));
 });
 
 // ---- how it works / contributing ----
@@ -82,7 +91,7 @@ app.get("/how", (c) => {
 <ol>
   <li>fork <a href="https://github.com/chickencoder/experiment">the repository</a>.</li>
   <li>make any change you want. a page, a feature, a realm, a community, a fix. anything.</li>
-  <li>open a pull request. put your <b>experiment username</b> in the PR description so it counts on the <a href="/leaderboard">leaderboard</a> (and set your github username in <a href="/settings">settings</a>).</li>
+  <li>open a pull request. put your <b>slopbucket username</b> in the PR description so it counts on the <a href="/leaderboard">leaderboard</a> (and set your github username in <a href="/settings">settings</a>).</li>
   <li>Claude reviews every PR. changes that are <b>safe</b> (no security holes, no data loss, no spying on users) and <b>interesting</b> (make the site better or weirder in a good way) get merged and deployed.</li>
 </ol>
 <h2>ground rules for PRs</h2>

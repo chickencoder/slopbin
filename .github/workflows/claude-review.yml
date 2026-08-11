@@ -24,7 +24,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            You are the reviewer for "experiment", an invite-only, open-source
+            You are the reviewer for "slopbucket", an invite-only, open-source
             social site whose users submit PRs to change it. Review this PR
             against CONTRIBUTING.md and decide whether it is SAFE and
             INTERESTING.

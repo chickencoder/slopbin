@@ -1,5 +1,5 @@
 {
-  "name": "experiment",
+  "name": "slopbucket",
   "version": "0.1.0",
   "private": true,
   "description": "A minimalist, invite-only, open-source social experiment on Cloudflare Workers.",

@@ -49,13 +49,13 @@ export function layout(opts: {
 </head>
 <body>
 <header>
-  <a class="site" href="/">experiment</a>
+  <a class="site" href="/">slopbucket</a>
   ${nav}
 </header>
 ${body}
 <footer>
-  an <a href="https://github.com/chickencoder/experiment">open source</a> experiment.
-  want a feature? <a href="/how">send a pull request</a>.
+  slopbucket is <a href="https://github.com/chickencoder/experiment">open source</a>.
+  want it to be different? <a href="/how">send a pull request</a>.
 </footer>
 </body>
 </html>`;
