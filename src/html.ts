@@ -22,6 +22,11 @@ export function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** The stamp for the datetime attribute of a <time> element. */
+export function isoTime(unixSeconds: number): string {
+  return new Date(unixSeconds * 1000).toISOString();
+}
+
 export function timeAgo(unixSeconds: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000) - unixSeconds);
   if (s < 60) return `${s}s ago`;
