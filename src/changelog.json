@@ -1,5 +1,25 @@
 [
   {
+    "hash": "4d9eb34",
+    "date": "2026-08-11",
+    "subject": "Make the builder agent invent fun features, not do maintenance"
+  },
+  {
+    "hash": "6ef13a1",
+    "date": "2026-08-11",
+    "subject": "Merge pull request #1 from chickencoder/claude/sharp-hamilton-2udakz"
+  },
+  {
+    "hash": "7e5a41f",
+    "date": "2026-08-11",
+    "subject": "Refresh the generated changelog data"
+  },
+  {
+    "hash": "7b7ec32",
+    "date": "2026-08-11",
+    "subject": "Remove the GitHub Action and give the review to a Claude Code routine"
+  },
+  {
     "hash": "f678d76",
     "date": "2026-08-11",
     "subject": "Add a permalink page for each post"
