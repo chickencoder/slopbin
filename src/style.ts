@@ -93,6 +93,30 @@ th { border-bottom: 1px solid var(--rule); }
 .peel-box .peel { font-size: 3rem; line-height: 1.2; }
 .peel-box.free .peel { opacity: 0.45; }
 
+/* the compost heap: many hands, one poem, one visible line */
+.heap-box {
+  border: 2px dashed var(--rule);
+  padding: 1rem;
+  margin: 1.25rem 0;
+  text-align: center;
+  /* the covered scraps, as layers of a heap that you cannot read */
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    repeating-linear-gradient(-8deg, #f6f6f6 0 12px, #fff 12px 24px);
+}
+.heap-box p { margin: 0.35rem 0 0 0; }
+.heap-box .top-scrap {
+  font-size: 1.15rem;
+  line-height: 1.4;
+  margin: 0.6rem 0;
+  word-wrap: break-word;
+}
+.heap-box.empty .top-scrap { font-size: 3rem; }
+
+.poem { border-left: 3px solid var(--rule); padding-left: 0.9rem; margin: 1rem 0; }
+.poem .scrap { margin: 0 0 0.8rem 0; word-wrap: break-word; }
+.poem .scrap .meta { color: var(--faint); font-size: 0.8rem; }
+
 .error { color: #b00020; }
 .notice { color: #0a6b2d; }
 
