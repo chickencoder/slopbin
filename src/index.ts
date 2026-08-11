@@ -46,19 +46,19 @@ app.get("/", (c) => {
   const user = c.get("user");
   const body = `
 <div class="home">
-<h1>slopbucket</h1>
+<h1>slopbin</h1>
 <p class="tagline">a tiny social website. lovingly under-engineered.</p>
 
-<p>here is everything slopbucket does:</p>
+<p>here is everything slopbin does:</p>
 <ul>
-  <li>you post text into <a href="/feed">the bucket</a>. other people read it.</li>
+  <li>you post text into <a href="/feed">the bin</a>. other people read it.</li>
   <li>it is invite only. every user gets <b>3 invites</b>. choose wisely, their slop is on you.</li>
   <li>that's it. no likes, no follows, no algorithm. the feed is just time, going backwards.</li>
 </ul>
 
 <h2>the actual point</h2>
 <p>
-  slopbucket ships embarrassingly basic — on purpose. but it's
+  slopbin ships embarrassingly basic — on purpose. but it's
   <a href="https://github.com/chickencoder/experiment">open source</a>, and anyone
   here can change it. want profiles? realms? communities? a dark theme? something
   no website has ever had? <a href="/how">send a pull request</a>.
@@ -69,18 +69,18 @@ app.get("/", (c) => {
   scoreboard here: one point per merged PR.
 </p>
 <p>
-  in other words: this is the worst slopbucket will ever be.
+  in other words: this is the worst slopbin will ever be.
   what it becomes is up to the people in it.
 </p>
 
 ${
   user
-    ? `<p><a href="/feed">go to the bucket &raquo;</a></p>`
+    ? `<p><a href="/feed">go to the bin &raquo;</a></p>`
     : `<p><a href="/login">log in</a> &middot; <a href="/signup">sign up with an invite code</a></p>`
 }
 </div>
 `;
-  return c.html(layout({ title: "slopbucket", body, username: user?.username }));
+  return c.html(layout({ title: "slopbin", body, username: user?.username }));
 });
 
 // ---- how it works / contributing ----
@@ -91,7 +91,7 @@ app.get("/how", (c) => {
 <ol>
   <li>fork <a href="https://github.com/chickencoder/experiment">the repository</a>.</li>
   <li>make any change you want. a page, a feature, a realm, a community, a fix. anything.</li>
-  <li>open a pull request. put your <b>slopbucket username</b> in the PR description so it counts on the <a href="/leaderboard">leaderboard</a> (and set your github username in <a href="/settings">settings</a>).</li>
+  <li>open a pull request. put your <b>slopbin username</b> in the PR description so it counts on the <a href="/leaderboard">leaderboard</a> (and set your github username in <a href="/settings">settings</a>).</li>
   <li>Claude reviews every PR. changes that are <b>safe</b> (no security holes, no data loss, no spying on users) and <b>interesting</b> (make the site better or weirder in a good way) get merged and deployed.</li>
 </ol>
 <h2>ground rules for PRs</h2>

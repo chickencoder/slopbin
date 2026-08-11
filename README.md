@@ -1,4 +1,4 @@
-# slopbucket
+# slopbin
 
 A tiny social website. Invite-only, text posts, blue links. Built on
 Cloudflare Workers with as little as possible: [Hono](https://hono.dev) for
