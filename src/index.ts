@@ -7,12 +7,10 @@ import {
   getSessionUser,
   newToken,
   sessionCookie,
-  signValue,
-  verifyValue,
   type SessionUser,
 } from "./auth";
 import changelog from "./changelog.json";
-import { esc, layout, timeAgo } from "./html";
+import { esc, layout, LOGO, REPO, timeAgo } from "./html";
 import { CSS } from "./style";
 
 type Env = {
@@ -50,38 +48,44 @@ app.get("/", (c) => {
   const user = c.get("user");
   const body = `
 <div class="home">
-<h1>slopbin</h1>
-<p class="tagline">a tiny social website. lovingly under-engineered.</p>
+<h1>${LOGO} slopbin</h1>
+<p class="tagline">an agent builds this website. you can build it too.</p>
 
-<p>here is everything slopbin does:</p>
+<p class="lede">
+  an AI agent works on slopbin again and again. the agent selects a task,
+  writes the code, and opens a pull request. this page is the result of that
+  work up to now.
+</p>
+
+<h2>what the site does today</h2>
 <ul>
-  <li>you post text into <a href="/feed">the bin</a>. other people read it.</li>
-  <li>it is invite only. every user gets <b>3 invites</b>. choose wisely, their slop is on you.</li>
-  <li>that's it. no likes, no follows, no algorithm. the feed is just time, going backwards.</li>
+  <li>you write short text posts in <a href="/feed">the bin</a>. other users read them.</li>
+  <li>there are no likes, no follows, and no algorithm. the feed shows the newest post first.</li>
+  <li>that is the full website. for now.</li>
 </ul>
 
-<h2>the actual point</h2>
+<h2>you can build it too</h2>
 <p>
-  slopbin ships embarrassingly basic — on purpose. but it's
-  <a href="https://github.com/chickencoder/experiment">open source</a>, and anyone
-  here can change it. want profiles? realms? communities? a dark theme? something
-  no website has ever had? <a href="/how">send a pull request</a>.
+  the code is <a href="${REPO}">open source</a>. copy the repository, make any
+  change, and open a pull request. your pull request has the same status as the
+  pull request of the agent.
 </p>
 <p>
-  every PR gets reviewed by Claude. safe and interesting changes get merged and
-  deployed for everyone. the <a href="/leaderboard">leaderboard</a> is the only
-  scoreboard here: one point per merged PR. every deploy lands in
-  <a href="/changelog">the changelog</a>.
+  Claude reads each pull request and asks one question: is the change
+  <b>safe</b>? safe changes go into the site. the
+  <a href="/leaderboard">leaderboard</a> counts the merged pull requests of
+  users and agents together. each new version is in the
+  <a href="/changelog">changelog</a>.
 </p>
 <p>
-  in other words: this is the worst slopbin will ever be.
-  what it becomes is up to the people in it.
+  this is the smallest version of slopbin. the site becomes larger each time a
+  user or an agent adds to it.
 </p>
 
 ${
   user
-    ? `<p><a href="/feed">go to the bin &raquo;</a></p>`
-    : `<p><a href="/login">log in with github</a> &middot; <a href="/signup">sign up with an invite code</a></p>`
+    ? `<p><a href="/feed">go to the bin &raquo;</a> &middot; <a href="/how">change this site &raquo;</a></p>`
+    : `<p><a href="/login">log in with github &raquo;</a> &middot; <a href="/how">change this site &raquo;</a></p>`
 }
 </div>
 `;
@@ -93,20 +97,22 @@ app.get("/how", (c) => {
   const user = c.get("user");
   const body = `
 <h1>how to change this website</h1>
+<p>the agent does these steps again and again. you can do the same steps at any time.</p>
 <ol>
-  <li>fork <a href="https://github.com/chickencoder/experiment">the repository</a>.</li>
-  <li>make any change you want. a page, a feature, a realm, a community, a fix. anything.</li>
-  <li>open a pull request. your slopbin account <i>is</i> your github account, so merged PRs count toward the <a href="/leaderboard">leaderboard</a> automatically.</li>
-  <li>Claude reviews every PR. changes that are <b>safe</b> (no security holes, no data loss, no spying on users) and <b>interesting</b> (make the site better or weirder in a good way) get merged and deployed. every deploy shows up in the <a href="/changelog">changelog</a>.</li>
+  <li>copy <a href="${REPO}">the repository</a> to your github account.</li>
+  <li>make any change. a new page, a new function, or a correction.</li>
+  <li>open a pull request. your slopbin account <i>is</i> your github account. thus the <a href="/leaderboard">leaderboard</a> counts your merged pull requests automatically.</li>
+  <li>Claude reads your pull request and asks if the change is <b>safe</b>. safe changes go into the site, and each new version is in the <a href="/changelog">changelog</a>.</li>
 </ol>
-<h2>ground rules for PRs</h2>
+<h2>rules for pull requests</h2>
 <ul>
-  <li>no tracking, ads, or dark patterns.</li>
-  <li>don't break login, invites, or existing posts.</li>
-  <li>keep the spirit: fast, small, readable code. pure CSS. blue links.</li>
-  <li>everything else is fair game.</li>
+  <li>do not add trackers, advertisements, or dark patterns.</li>
+  <li>do not break the login or the existing posts.</li>
+  <li>keep the style of the code: small, fast, and easy to read. pure CSS. blue links.</li>
+  <li>do not change the infrastructure. the deploy configuration, the CI files, the dependencies, and the secrets are not open to changes.</li>
+  <li>all other changes are permitted.</li>
 </ul>
-<p>see <a href="https://github.com/chickencoder/experiment/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for the details.</p>
+<p>read <a href="${REPO}/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for more data.</p>
 `;
   return c.html(layout({ title: "how it works", body, username: user?.username }));
 });
@@ -117,28 +123,15 @@ app.get("/login", (c) => {
   if (c.get("user")) return c.redirect("/feed");
   const body = `
 <h1>log in</h1>
-<p>slopbin accounts are github accounts.</p>
+<p>a slopbin account is a github account. the first log in makes your account.</p>
 <p><a href="/auth/github">log in with github &raquo;</a></p>
-<p><small>new here? you'll need an invite code after github says hello. <a href="/signup">details</a>.</small></p>
+<p><small>the <a href="/leaderboard">leaderboard</a> uses the same github account to count your merged pull requests.</small></p>
 `;
   return c.html(layout({ title: "log in", body }));
 });
 
-app.get("/signup", (c) => {
-  if (c.get("user")) return c.redirect("/feed");
-  const invite = c.req.query("invite");
-  if (invite) c.header("Set-Cookie", cookie("invite_hint", encodeURIComponent(invite), 600));
-  const body = `
-<h1>sign up</h1>
-<p>two things get you in:</p>
-<ol>
-  <li>a github account (that's your identity here)</li>
-  <li>an invite code (ask someone who's already in)</li>
-</ol>
-<p><a href="/auth/github">continue with github &raquo;</a></p>
-`;
-  return c.html(layout({ title: "sign up", body }));
-});
+// There is no separate signup any more; github is the whole door.
+app.get("/signup", (c) => c.redirect("/login"));
 
 app.get("/auth/github", (c) => {
   if (!c.env.GITHUB_CLIENT_ID || !c.env.GITHUB_CLIENT_SECRET) {
@@ -198,6 +191,8 @@ app.get("/auth/github/callback", async (c) => {
     .bind(gh.id)
     .first<{ id: number; username: string }>();
 
+  let userId = existing?.id;
+
   if (existing) {
     if (existing.username !== gh.login) {
       // GitHub login changed since last visit; follow it.
@@ -205,117 +200,20 @@ app.get("/auth/github/callback", async (c) => {
         .bind(gh.login, existing.id)
         .run();
     }
-    const token = await createSession(c.env.DB, existing.id);
-    c.header("Set-Cookie", sessionCookie(token), { append: true });
-    c.header("Set-Cookie", cookie("gh_state", "", 0), { append: true });
-    return c.redirect("/feed");
+  } else {
+    // First time here: the github account is the whole signup.
+    const inserted = await c.env.DB.prepare(
+      "INSERT INTO users (github_id, username, created_at) VALUES (?, ?, ?)" +
+        " ON CONFLICT(github_id) DO UPDATE SET username = excluded.username RETURNING id"
+    )
+      .bind(gh.id, gh.login, now())
+      .first<{ id: number }>();
+    userId = inserted!.id;
   }
 
-  // New face: park their github identity in a signed cookie and ask for an invite.
-  const pending = await signValue(secret, { id: gh.id, login: gh.login, exp: now() + 600 });
-  c.header("Set-Cookie", cookie("pending", pending, 600), { append: true });
-  c.header("Set-Cookie", cookie("gh_state", "", 0), { append: true });
-  return c.redirect("/signup/complete");
-});
-
-interface Pending {
-  id: number;
-  login: string;
-  exp: number;
-}
-
-async function readPending(secret: string, raw: string | undefined): Promise<Pending | null> {
-  if (!raw) return null;
-  const p = await verifyValue<Pending>(secret, raw);
-  if (!p || p.exp < now()) return null;
-  return p;
-}
-
-app.get("/signup/complete", async (c) => {
-  const secret = c.env.GITHUB_CLIENT_SECRET;
-  if (!secret) return c.text("not configured", 503);
-  const pending = await readPending(secret, getCookie(c, "pending"));
-  if (!pending) return c.redirect("/signup");
-
-  const hint = getCookie(c, "invite_hint") ?? "";
-  const error = c.req.query("error");
-  const body = `
-<h1>almost in</h1>
-<p>hello, <b>${esc(pending.login)}</b>. one more thing: an invite code.</p>
-${error ? `<p class="error">${esc(error)}</p>` : ""}
-<form class="stack" method="post" action="/signup/complete">
-  <label>invite code <input type="text" name="invite" value="${esc(decodeURIComponent(hint))}" required></label>
-  <button type="submit">join slopbin</button>
-</form>
-`;
-  return c.html(layout({ title: "sign up", body }));
-});
-
-app.post("/signup/complete", async (c) => {
-  const secret = c.env.GITHUB_CLIENT_SECRET;
-  if (!secret) return c.text("not configured", 503);
-  const pending = await readPending(secret, getCookie(c, "pending"));
-  if (!pending) return c.redirect("/signup");
-
-  const form = await c.req.parseBody();
-  const invite = String(form.invite ?? "").trim();
-  const fail = (msg: string) =>
-    c.redirect(`/signup/complete?error=${encodeURIComponent(msg)}`);
-
-  const inviteRow = await c.env.DB.prepare(
-    "SELECT code, created_by, used_by FROM invites WHERE code = ?"
-  )
-    .bind(invite)
-    .first<{ code: string; created_by: number | null; used_by: number | null }>();
-  if (!inviteRow) return fail("that invite code doesn't exist.");
-  if (inviteRow.used_by !== null) return fail("that invite code has already been used.");
-
-  // Another tab may have finished signup already.
-  const dupe = await c.env.DB.prepare("SELECT id FROM users WHERE github_id = ?")
-    .bind(pending.id)
-    .first<{ id: number }>();
-  if (dupe) {
-    const token = await createSession(c.env.DB, dupe.id);
-    c.header("Set-Cookie", sessionCookie(token), { append: true });
-    c.header("Set-Cookie", cookie("pending", "", 0), { append: true });
-    return c.redirect("/feed");
-  }
-
-  const ts = now();
-  const inserted = await c.env.DB.prepare(
-    "INSERT INTO users (github_id, username, invited_by, created_at) VALUES (?, ?, ?, ?) RETURNING id"
-  )
-    .bind(pending.id, pending.login, inviteRow.created_by, ts)
-    .first<{ id: number }>();
-  const userId = inserted!.id;
-
-  // Claim the invite atomically: the WHERE used_by IS NULL guard means two
-  // people racing on the same code can't both get in.
-  const claim = await c.env.DB.prepare(
-    "UPDATE invites SET used_by = ? WHERE code = ? AND used_by IS NULL"
-  )
-    .bind(userId, invite)
-    .run();
-  if (!claim.meta.changes) {
-    await c.env.DB.prepare("DELETE FROM users WHERE id = ?").bind(userId).run();
-    return fail("that invite code has already been used.");
-  }
-
-  // Mint the new user's 3 invites.
-  const statements = [];
-  for (let i = 0; i < 3; i++) {
-    statements.push(
-      c.env.DB.prepare(
-        "INSERT INTO invites (code, created_by, created_at) VALUES (?, ?, ?)"
-      ).bind(newToken().slice(0, 12), userId, ts)
-    );
-  }
-  await c.env.DB.batch(statements);
-
-  const token = await createSession(c.env.DB, userId);
+  const token = await createSession(c.env.DB, userId!);
   c.header("Set-Cookie", sessionCookie(token), { append: true });
-  c.header("Set-Cookie", cookie("pending", "", 0), { append: true });
-  c.header("Set-Cookie", cookie("invite_hint", "", 0), { append: true });
+  c.header("Set-Cookie", cookie("gh_state", "", 0), { append: true });
   return c.redirect("/feed");
 });
 
@@ -335,7 +233,7 @@ interface PostRow {
 }
 
 function renderPosts(posts: PostRow[]): string {
-  if (!posts.length) return `<p class="faint">nothing here yet. say something.</p>`;
+  if (!posts.length) return `<p class="faint">there are no posts here. write the first post.</p>`;
   return posts
     .map(
       (p) => `
@@ -360,7 +258,7 @@ app.get("/feed", async (c) => {
   const body = `
 <h1>the bin</h1>
 <form class="stack" method="post" action="/posts">
-  <textarea name="body" maxlength="500" placeholder="up to 500 characters" required></textarea>
+  <textarea name="body" maxlength="500" placeholder="write a maximum of 500 characters" required></textarea>
   <button type="submit">post</button>
 </form>
 <hr>
@@ -398,7 +296,7 @@ app.get("/u/:username", async (c) => {
 
   if (!profile) {
     return c.html(
-      layout({ title: "not found", body: "<h1>no such user</h1>", username: viewer?.username }),
+      layout({ title: "not found", body: "<h1>this user does not exist</h1>", username: viewer?.username }),
       404
     );
   }
@@ -420,39 +318,6 @@ ${renderPosts(results)}
   return c.html(layout({ title: profile.username, body, username: viewer?.username }));
 });
 
-// ---- invites ----
-app.get("/invites", async (c) => {
-  const user = requireUser(c);
-  if (!user) return c.redirect("/login");
-
-  const { results } = await c.env.DB.prepare(
-    `SELECT i.code, i.used_by, u.username AS used_by_name
-     FROM invites i LEFT JOIN users u ON u.id = i.used_by
-     WHERE i.created_by = ? ORDER BY i.created_at`
-  )
-    .bind(user.id)
-    .all<{ code: string; used_by: number | null; used_by_name: string | null }>();
-
-  const origin = new URL(c.req.url).origin;
-  const rows = results
-    .map((i) =>
-      i.used_by
-        ? `<tr><td><s>${esc(i.code)}</s></td><td>used by <a href="/u/${esc(i.used_by_name!)}">${esc(i.used_by_name!)}</a></td></tr>`
-        : `<tr><td><code>${esc(i.code)}</code></td><td><a href="${esc(origin)}/signup?invite=${esc(i.code)}">invite link</a></td></tr>`
-    )
-    .join("\n");
-
-  const body = `
-<h1>your invites</h1>
-<p>you got 3. spend them well — whoever joins is on you.</p>
-<table>
-  <tr><th>code</th><th>status</th></tr>
-  ${rows}
-</table>
-`;
-  return c.html(layout({ title: "invites", body, username: user.username }));
-});
-
 // ---- leaderboard ----
 app.get("/leaderboard", async (c) => {
   const viewer = c.get("user");
@@ -470,11 +335,12 @@ app.get("/leaderboard", async (c) => {
 
   const body = `
 <h1>leaderboard</h1>
-<p>who has changed this website the most. one point per merged pull request.</p>
+<p>these users changed this website the most. each merged pull request gives one
+point. users and agents are on the same list.</p>
 ${
   results.length
     ? `<table><tr><th></th><th>user</th><th>merged PRs</th></tr>${rows}</table>`
-    : `<p class="faint">nobody has merged a PR yet. <a href="/how">the board is wide open</a>.</p>`
+    : `<p class="faint">no pull request is merged at this time. <a href="/how">you can be the first</a>.</p>`
 }
 `;
   return c.html(layout({ title: "leaderboard", body, username: viewer?.username }));
@@ -489,15 +355,16 @@ app.get("/changelog", (c) => {
       const dateHeader = e.date !== lastDate ? `<h2>${esc(e.date)}</h2>` : "";
       lastDate = e.date;
       return `${dateHeader}
-<p class="post"><code><a href="https://github.com/chickencoder/experiment/commit/${esc(e.hash)}">${esc(e.hash)}</a></code> ${esc(e.subject)}</p>`;
+<p class="post"><code><a href="${REPO}/commit/${esc(e.hash)}">${esc(e.hash)}</a></code> ${esc(e.subject)}</p>`;
     })
     .join("\n");
 
   const body = `
 <h1>changelog</h1>
-<p>every deploy, in public. this list is generated from git history at deploy
-time, so it's exactly what's running right now.</p>
-${items || `<p class="faint">no history yet, somehow.</p>`}
+<p>this is each new version of the site, in public. the deploy procedure makes
+this list from the git history. thus the list shows the version that operates
+now.</p>
+${items || `<p class="faint">there is no history at this time.</p>`}
 `;
   return c.html(layout({ title: "changelog", body, username: viewer?.username }));
 });
@@ -509,9 +376,9 @@ app.get("/settings", async (c) => {
 
   const body = `
 <h1>settings</h1>
-<p>you are <b>${esc(user.username)}</b>, which is to say
+<p>you are <b>${esc(user.username)}</b>. this is the same account as
 <a href="https://github.com/${esc(user.username)}">github.com/${esc(user.username)}</a>.
-merged PRs are credited to you automatically.</p>
+the site gives you the points for your merged pull requests automatically.</p>
 <form method="post" action="/logout"><button type="submit">log out</button></form>
 `;
   return c.html(layout({ title: "settings", body, username: user.username }));
@@ -567,7 +434,7 @@ app.notFound((c) =>
   c.html(
     layout({
       title: "not found",
-      body: `<h1>404</h1><p>this page doesn't exist. <a href="/how">yet.</a></p>`,
+      body: `<h1>404</h1><p>this page does not exist. <a href="/how">you can make it</a>.</p>`,
       username: c.get("user")?.username,
     }),
     404

@@ -2,7 +2,7 @@
   "name": "slopbin",
   "version": "0.1.0",
   "private": true,
-  "description": "A minimalist, invite-only, open-source social experiment on Cloudflare Workers.",
+  "description": "A small open-source social website on Cloudflare Workers. An agent builds it, and you can build it too.",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",

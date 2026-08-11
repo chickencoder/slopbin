@@ -33,6 +33,7 @@ header {
 
 header .site { font-weight: 700; text-decoration: none; color: var(--ink); }
 header .site:visited { color: var(--ink); }
+header .logo { font-size: 1.05em; }
 header nav { display: inline; }
 header nav a { margin-left: 0.75rem; }
 
@@ -41,7 +42,8 @@ h2 { font-size: 1.1rem; }
 
 /* homepage gets a little extra air */
 .home h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
-.home .tagline { margin-top: 0; color: var(--faint); }
+.home .tagline { margin-top: 0; font-size: 1.1rem; font-weight: 600; color: var(--ink); }
+.home .lede { color: var(--faint); }
 .home h2 { margin-top: 2rem; }
 .home p, .home ul { margin-top: 0.9rem; margin-bottom: 0.9rem; }
 .home li { margin-bottom: 0.4rem; }

@@ -22,7 +22,7 @@ try {
   process.exit(0);
 }
 
-// Skip the write when nothing changed — wrangler dev watches src/, and an
+// Skip the write when nothing changed. wrangler dev watches src/, and an
 // unconditional write here would retrigger the build in a loop.
 const target = new URL("../src/changelog.json", import.meta.url);
 const next = JSON.stringify(entries, null, 2) + "\n";

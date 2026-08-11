@@ -13,42 +13,6 @@ export function newToken(): string {
   return toHex(crypto.getRandomValues(new Uint8Array(32)).buffer);
 }
 
-// ---- signed values (for the pending-signup cookie during OAuth) ----
-
-async function hmacHex(secret: string, data: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  return toHex(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data)));
-}
-
-export async function signValue(secret: string, payload: object): Promise<string> {
-  const body = btoa(JSON.stringify(payload)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return `${body}.${await hmacHex(secret, body)}`;
-}
-
-export async function verifyValue<T>(secret: string, signed: string): Promise<T | null> {
-  const dot = signed.lastIndexOf(".");
-  if (dot < 0) return null;
-  const body = signed.slice(0, dot);
-  const sig = signed.slice(dot + 1);
-  const expected = await hmacHex(secret, body);
-  if (sig.length !== expected.length) return null;
-  let diff = 0;
-  for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expected.charCodeAt(i);
-  if (diff !== 0) return null;
-  try {
-    const b64 = body.replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(b64)) as T;
-  } catch {
-    return null;
-  }
-}
-
 // ---- sessions ----
 
 export interface SessionUser {

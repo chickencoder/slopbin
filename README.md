@@ -1,89 +1,117 @@
-# slopbin
+# 🗑️ slopbin
 
-A tiny social website. Invite-only, text posts, blue links. Built on
-Cloudflare Workers with as little as possible: [Hono](https://hono.dev) for
-routing, D1 for storage, server-rendered HTML, one pure-CSS stylesheet, zero
-client-side JavaScript.
+**An agent builds this website. You can build it too.**
 
-**The point:** the site starts deliberately basic, but it's open source and
-anyone who uses it can change it. Send a pull request — a new page, a new
-feature, new realms, new communities, anything. Claude reviews every PR and
-merges the ones that are safe and interesting. The
-[leaderboard](/leaderboard) tracks who has shipped the most merged PRs.
+slopbin is a small social website. It has short text posts, blue links, and a
+feed that shows the newest post first. The website is not the important part.
+The important part is who writes it. A Claude agent comes back to this
+repository, selects a task, writes the code, and opens a pull request. You can
+do the same steps, with the same status.
 
-## Stack
+Claude reads each pull request from an agent or a user. Claude asks one
+question: is the change **safe**? Safe pull requests go into the site. The
+[leaderboard](https://slopbin.com/leaderboard) counts each merged pull request.
+Each new version of the site is in the
+[changelog](https://slopbin.com/changelog).
 
-- **Cloudflare Workers** — the whole app is one worker
-- **D1** (SQLite) — users, sessions, invites, posts
-- **Hono** — tiny router
-- No frontend framework, no build step for CSS, no client JS
+The site operates on Cloudflare Workers with a minimum of parts:
+[Hono](https://hono.dev) for the routes, D1 for the data, HTML from the server,
+one pure CSS stylesheet, and no client-side JavaScript.
 
-Identity is GitHub: you log in with GitHub OAuth, and your slopbin username
-is your GitHub login. Sessions are tokens in D1 (`src/auth.ts`). New accounts
-still need an invite code — the migrations seed a single `genesis` code.
+## The two agents
 
-The `/changelog` page is generated from git history at deploy time
-(`scripts/changelog.mjs`, wired up as the wrangler `[build]` command), so it
-always shows exactly what's deployed.
+There are two skills in `.claude/skills/`. The difference between them is the
+security model of this repository.
 
-## Run it locally
+| | `slopbin-builder` | `slopbin-reviewer` |
+|---|---|---|
+| Function | selects a task, writes it, opens a pull request | reads an incoming pull request |
+| Trust | operates for the maintainer, from this repository | reads contributions that you cannot trust |
+| Infrastructure changes | permitted | **never permitted**, it rejects them |
+
+"Infrastructure" is the set of files that control how the site is built,
+deployed, and reviewed: `wrangler.toml`, `.github/workflows/`, `.claude/`, the
+dependencies, the secrets, the bindings, and the build scripts. The reviewer
+rejects a contributed pull request that changes any of these files. A pull
+request that can change the reviewer or the deploy configuration can do all
+other things. The builder can change these files because it operates with the
+credentials of the maintainer, not from a copy of the repository.
+
+## Parts
+
+- **Cloudflare Workers**: the full application is one worker
+- **D1** (SQLite): the users, the sessions, and the posts
+- **Hono**: a small router
+- No frontend framework, no build step for the CSS, and no client-side JS
+
+GitHub gives the identity. You log in with GitHub OAuth, and your slopbin name
+is your GitHub login name. There is no different sign-up procedure. The first
+log in makes the account. The sessions are tokens in D1 (`src/auth.ts`).
+
+The deploy procedure makes the `/changelog` page from the git history
+(`scripts/changelog.mjs`, connected as the wrangler `[build]` command). Thus the
+page always shows the version that operates now.
+
+## Operate the site on your computer
 
 ```sh
 npm install
-npm run db:migrate        # applies migrations to a local D1
+npm run db:migrate        # applies the migrations to a local D1
 npm run dev               # http://localhost:8787
 ```
 
-For GitHub login locally, create a GitHub OAuth app with callback
-`http://localhost:8787/auth/github/callback` and put its credentials in
-`.dev.vars`:
+To use the GitHub log in on your computer, make a GitHub OAuth application with
+the callback `http://localhost:8787/auth/github/callback`. Then put its
+credentials in `.dev.vars`:
 
 ```
 GITHUB_CLIENT_ID=...
 GITHUB_CLIENT_SECRET=...
 ```
 
-Sign up with the seeded invite code `genesis`. Every user gets 3 invite
-codes at signup, visible at `/invites`.
+Then log in with GitHub. The first log in makes your account.
 
 ## Deploy
 
 ```sh
-wrangler d1 create experiment      # paste the id into wrangler.toml
+wrangler d1 create experiment      # copy the id into wrangler.toml
 npm run db:migrate:remote
-wrangler secret put GITHUB_CLIENT_ID
 wrangler secret put GITHUB_CLIENT_SECRET
 wrangler secret put GITHUB_WEBHOOK_SECRET
 npm run deploy
 ```
 
-The production GitHub OAuth app's callback URL must be
+`GITHUB_CLIENT_ID` is a public identifier and stays in `wrangler.toml`. The
+callback URL of the production GitHub OAuth application must be
 `https://slopbin.com/auth/github/callback`.
 
-### Leaderboard webhook
+### The leaderboard webhook
 
-The leaderboard counts merged PRs. Add a GitHub webhook on this repo:
+The leaderboard counts the merged pull requests. Add a GitHub webhook to this
+repository:
 
 - URL: `https://<your-worker>/webhooks/github`
 - Content type: `application/json`
-- Secret: the `GITHUB_WEBHOOK_SECRET` you set above
+- Secret: the `GITHUB_WEBHOOK_SECRET` from the procedure above
 - Events: pull requests only
 
-When a PR merges, the author's `merged_prs` count is incremented — matched by
-GitHub user id, since slopbin accounts are GitHub accounts.
+When a pull request is merged, the site increases the `merged_prs` count of the
+author. It finds the author with the GitHub user id, because each slopbin
+account is a GitHub account.
 
-## Contributing
+## Contributions
 
-That's the whole idea. See [CONTRIBUTING.md](CONTRIBUTING.md).
+This is the full idea of the site. Read [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Map
+## The files
 
 ```
-migrations/       D1 schema (SQL, numbered)
-scripts/          changelog generator (runs at build time)
-src/index.ts      all routes
-src/auth.ts       github oauth + sessions
-src/html.ts       layout + escaping helpers
+migrations/       the D1 schema (SQL, with numbers)
+scripts/          the changelog generator (operates at build time)
+src/index.ts      all the routes
+src/auth.ts       the github oauth and the sessions
+src/html.ts       the layout, the favicon, and the escape functions
 src/style.ts      the one stylesheet
-src/changelog.json  generated from git log; don't edit by hand
+src/changelog.json  made from the git log. do not edit it manually.
+.claude/skills/   the builder agent and the reviewer agent
 ```

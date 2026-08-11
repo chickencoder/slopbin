@@ -1,5 +1,20 @@
 [
   {
+    "hash": "2ab9050",
+    "date": "2026-08-11",
+    "subject": "Align worker name with the renamed slopbin worker"
+  },
+  {
+    "hash": "9a9548a",
+    "date": "2026-08-11",
+    "subject": "Pin GITHUB_CLIENT_ID in wrangler.toml vars"
+  },
+  {
+    "hash": "ec16e96",
+    "date": "2026-08-11",
+    "subject": "GitHub OAuth auth + public changelog"
+  },
+  {
     "hash": "d9c60c1",
     "date": "2026-08-11",
     "subject": "Rename to slopbin"
