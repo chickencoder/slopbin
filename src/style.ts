@@ -82,6 +82,17 @@ table { border-collapse: collapse; }
 th, td { text-align: left; padding: 0.25rem 1.25rem 0.25rem 0; }
 th { border-bottom: 1px solid var(--rule); }
 
+/* the golden banana peel: one object, one hand at a time */
+.peel-box {
+  border: 2px dashed var(--rule);
+  padding: 1rem;
+  margin: 1.25rem 0;
+  text-align: center;
+}
+.peel-box p { margin: 0.35rem 0 0 0; }
+.peel-box .peel { font-size: 3rem; line-height: 1.2; }
+.peel-box.free .peel { opacity: 0.45; }
+
 .error { color: #b00020; }
 .notice { color: #0a6b2d; }
 
