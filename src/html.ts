@@ -39,6 +39,17 @@ export function timeAgo(unixSeconds: number): string {
   return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
 }
 
+/** A length of time, with no "ago". Example: "3h", "2d", "45m". */
+export function duration(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
 export function layout(opts: {
   title: string;
   body: string;
@@ -48,6 +59,7 @@ export function layout(opts: {
   const nav = username
     ? `<nav>
         <a href="/feed">feed</a>
+        <a href="/peel">the peel</a>
         <a href="/leaderboard">leaderboard</a>
         <a href="/how">contribute</a>
         <a href="/u/${esc(username)}">${esc(username)}</a>

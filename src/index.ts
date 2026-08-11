@@ -10,7 +10,7 @@ import {
   type SessionUser,
 } from "./auth";
 import changelog from "./changelog.json";
-import { esc, isoTime, layout, LOGO, REPO, timeAgo } from "./html";
+import { duration, esc, isoTime, layout, LOGO, REPO, timeAgo } from "./html";
 import { CSS } from "./style";
 
 type Env = {
@@ -62,6 +62,7 @@ app.get("/", (c) => {
   <li>you write short text posts in <a href="/feed">the bin</a>. other users read them.</li>
   <li>there are no likes, no follows, and no algorithm. the feed shows the newest post first.</li>
   <li>each post has its own link. select the time of a post, then send that link to a different person.</li>
+  <li>there is one <a href="/peel">golden banana peel</a>. one user holds it, and gives it to a different user.</li>
   <li>that is the full website. for now.</li>
 </ul>
 
@@ -261,8 +262,14 @@ app.get("/feed", async (c) => {
      ORDER BY p.created_at DESC, p.id DESC LIMIT 50`
   ).all<PostRow>();
 
+  const hold = await currentHold(c.env.DB);
+  const peelLead = hold
+    ? `<p class="faint">🍌 <a href="/peel">the golden banana peel</a> is in the hand of <a href="/u/${esc(hold.holder)}">${esc(hold.holder)}</a>.</p>`
+    : `<p class="faint">🍌 <a href="/peel">the golden banana peel</a> is at the bottom of the bin. anybody can take it.</p>`;
+
   const body = `
 <h1>the bin</h1>
+${peelLead}
 <form class="stack" method="post" action="/posts">
   <textarea name="body" maxlength="500" placeholder="write a maximum of 500 characters" required></textarea>
   <button type="submit">post</button>
@@ -334,6 +341,172 @@ app.get("/p/:id", async (c) => {
   return c.html(
     layout({ title: `post by ${post.username}`, body, username: viewer?.username })
   );
+});
+
+// ---- the golden banana peel ----
+// There is exactly one peel. One user holds it, and gives it to a different
+// user with a short note. If a user holds the peel for more than a day, the
+// peel slips out of their hand and returns to the bin, and any user can take
+// it. Thus the machine never stops, even if a user goes away.
+
+const PEEL_TTL = 60 * 60 * 24; // one day in the hand, then it slips
+
+interface PeelHold {
+  id: number;
+  note: string;
+  taken_at: number;
+  released_at: number | null;
+  holder: string;
+  giver: string | null;
+}
+
+const PEEL_HOLD_SQL = `SELECT h.id, h.note, h.taken_at, h.released_at,
+         u.username AS holder, g.username AS giver
+  FROM peel_holds h
+  JOIN users u ON u.id = h.user_id
+  LEFT JOIN users g ON g.id = h.from_user_id`;
+
+/** The user who holds the peel now, or null if the peel is in the bin. */
+async function currentHold(db: D1Database): Promise<PeelHold | null> {
+  const hold = await db
+    .prepare(`${PEEL_HOLD_SQL} WHERE h.released_at IS NULL ORDER BY h.taken_at DESC LIMIT 1`)
+    .first<PeelHold>();
+  if (!hold) return null;
+  if (now() - hold.taken_at > PEEL_TTL) {
+    // The hand was too slow. The peel slips back into the bin.
+    await db
+      .prepare("UPDATE peel_holds SET released_at = ? WHERE released_at IS NULL")
+      .bind(hold.taken_at + PEEL_TTL)
+      .run();
+    return null;
+  }
+  return hold;
+}
+
+/** One line of the history of the peel. */
+function peelLine(h: PeelHold): string {
+  const end = h.released_at ?? now();
+  const how = h.giver
+    ? `${esc(h.giver)} gave it to <a href="/u/${esc(h.holder)}">${esc(h.holder)}</a>`
+    : `<a href="/u/${esc(h.holder)}">${esc(h.holder)}</a> took it out of the bin`;
+  const held = h.released_at ? `held it ${duration(end - h.taken_at)}` : `holds it now`;
+  return `<p class="post"><span class="meta">${timeAgo(h.taken_at)} &middot; ${held}</span><br>
+${how}${h.note ? ` &mdash; <i>&ldquo;${esc(h.note)}&rdquo;</i>` : ""}</p>`;
+}
+
+const PEEL_MESSAGES: Record<string, string> = {
+  nouser: "there is no user with that name on slopbin. look at the bin for a name.",
+  self: "you cannot give the peel to yourself. that is not how a peel operates.",
+  gone: "you do not hold the peel any more. somebody else has it.",
+  taken: "a different user took the peel first. wait for it to come back.",
+};
+
+app.get("/peel", async (c) => {
+  const viewer = c.get("user");
+  const hold = await currentHold(c.env.DB);
+
+  const { results: history } = await c.env.DB.prepare(
+    `${PEEL_HOLD_SQL} ORDER BY h.taken_at DESC, h.id DESC LIMIT 30`
+  ).all<PeelHold>();
+
+  const stats = await c.env.DB.prepare(
+    "SELECT COUNT(*) AS hands, COUNT(DISTINCT user_id) AS people FROM peel_holds"
+  ).first<{ hands: number; people: number }>();
+
+  const holding = !!viewer && hold?.holder === viewer.username;
+
+  const box = hold
+    ? `<div class="peel-box">
+  <div class="peel">🍌</div>
+  <p><b><a href="/u/${esc(hold.holder)}">${esc(hold.holder)}</a></b> holds the golden banana peel.</p>
+  <p class="faint">in that hand for ${duration(now() - hold.taken_at)}. it slips back into the bin in ${duration(hold.taken_at + PEEL_TTL - now())}.</p>
+</div>`
+    : `<div class="peel-box free">
+  <div class="peel">🗑️</div>
+  <p>the golden banana peel is at the bottom of the bin.</p>
+  <p class="faint">nobody holds it. any user can take it.</p>
+</div>`;
+
+  const err = PEEL_MESSAGES[c.req.query("e") ?? ""];
+
+  let action = "";
+  if (!viewer) {
+    action = `<p><a href="/login">log in with github</a> to hold the peel.</p>`;
+  } else if (holding) {
+    action = `<h2>give it away</h2>
+<p>you hold the peel. you cannot keep it. write the name of a different user and
+give the peel to them.</p>
+<form class="stack" method="post" action="/peel/pass">
+  <input type="text" name="to" placeholder="a slopbin username" maxlength="40" autocomplete="off" required>
+  <input type="text" name="note" placeholder="a note, a maximum of 100 characters" maxlength="100" autocomplete="off">
+  <button type="submit">give the peel away</button>
+</form>`;
+  } else if (!hold) {
+    action = `<form method="post" action="/peel/take"><button type="submit">take the peel out of the bin</button></form>`;
+  } else {
+    action = `<p class="faint">wait. the peel comes to the people who wait.</p>`;
+  }
+
+  const body = `
+<h1>the golden banana peel</h1>
+<p>there is one peel on slopbin. one user holds it. the user who holds it gives
+it to a different user, with a note. if a hand holds the peel for more than one
+day, the peel slips and falls back into the bin, and any user can take it.</p>
+${err ? `<p class="error">${esc(err)}</p>` : ""}
+${box}
+${action}
+<hr>
+<h2>where the peel has been</h2>
+<p class="faint">${stats?.hands ?? 0} hand${stats?.hands === 1 ? "" : "s"} &middot; ${stats?.people ?? 0} user${stats?.people === 1 ? "" : "s"}</p>
+${
+  history.length
+    ? history.map(peelLine).join("\n")
+    : `<p class="faint">the peel has no history. nobody has taken it yet.</p>`
+}
+`;
+  return c.html(layout({ title: "the golden banana peel", body, username: viewer?.username }));
+});
+
+app.post("/peel/take", async (c) => {
+  const user = requireUser(c);
+  if (!user) return c.redirect("/login");
+
+  if (await currentHold(c.env.DB)) return c.redirect("/peel?e=taken");
+
+  await c.env.DB.prepare(
+    "INSERT INTO peel_holds (user_id, from_user_id, note, taken_at) VALUES (?, NULL, '', ?)"
+  )
+    .bind(user.id, now())
+    .run();
+  return c.redirect("/peel");
+});
+
+app.post("/peel/pass", async (c) => {
+  const user = requireUser(c);
+  if (!user) return c.redirect("/login");
+
+  const form = await c.req.parseBody();
+  const to = String(form.to ?? "").trim().replace(/^@/, "");
+  const note = String(form.note ?? "").trim().slice(0, 100);
+
+  const hold = await currentHold(c.env.DB);
+  if (!hold || hold.holder !== user.username) return c.redirect("/peel?e=gone");
+
+  const target = await c.env.DB.prepare("SELECT id, username FROM users WHERE username = ?")
+    .bind(to)
+    .first<{ id: number; username: string }>();
+  if (!target) return c.redirect("/peel?e=nouser");
+  if (target.id === user.id) return c.redirect("/peel?e=self");
+
+  const t = now();
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE peel_holds SET released_at = ? WHERE id = ? AND released_at IS NULL")
+      .bind(t, hold.id),
+    c.env.DB.prepare(
+      "INSERT INTO peel_holds (user_id, from_user_id, note, taken_at) VALUES (?, ?, ?, ?)"
+    ).bind(target.id, user.id, note, t),
+  ]);
+  return c.redirect("/peel");
 });
 
 // ---- profiles ----
