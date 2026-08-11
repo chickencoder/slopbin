@@ -2,13 +2,10 @@ name = "experiment"
 main = "src/index.ts"
 compatibility_date = "2025-08-01"
 
-# Create the database with:
-#   wrangler d1 create experiment
-# then paste the database_id below.
 [[d1_databases]]
 binding = "DB"
 database_name = "experiment"
-database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
+database_id = "e30fe753-71bf-4ed7-beb5-428e119f2b7c"
 
 # Secrets (set with `wrangler secret put <NAME>`):
 #   GITHUB_WEBHOOK_SECRET - shared secret for the merged-PR webhook (leaderboard)
