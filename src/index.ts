@@ -10,7 +10,7 @@ import {
   type SessionUser,
 } from "./auth";
 import changelog from "./changelog.json";
-import { esc, layout, LOGO, REPO, timeAgo } from "./html";
+import { esc, isoTime, layout, LOGO, REPO, timeAgo } from "./html";
 import { CSS } from "./style";
 
 type Env = {
@@ -61,6 +61,7 @@ app.get("/", (c) => {
 <ul>
   <li>you write short text posts in <a href="/feed">the bin</a>. other users read them.</li>
   <li>there are no likes, no follows, and no algorithm. the feed shows the newest post first.</li>
+  <li>each post has its own link. select the time of a post, then send that link to a different person.</li>
   <li>that is the full website. for now.</li>
 </ul>
 
@@ -232,13 +233,18 @@ interface PostRow {
   username: string;
 }
 
+/** The author and the time of a post. The time is the permalink of the post. */
+function postMeta(p: PostRow): string {
+  return `<span class="meta"><a href="/u/${esc(p.username)}">${esc(p.username)}</a> &middot; <a href="/p/${p.id}"><time datetime="${isoTime(p.created_at)}">${timeAgo(p.created_at)}</time></a></span>`;
+}
+
 function renderPosts(posts: PostRow[]): string {
   if (!posts.length) return `<p class="faint">there are no posts here. write the first post.</p>`;
   return posts
     .map(
       (p) => `
 <div class="post">
-  <span class="meta"><a href="/u/${esc(p.username)}">${esc(p.username)}</a> &middot; ${timeAgo(p.created_at)}</span>
+  ${postMeta(p)}
   <p class="body">${esc(p.body)}</p>
 </div>`
     )
@@ -281,6 +287,53 @@ app.post("/posts", async (c) => {
     .bind(user.id, body, now())
     .run();
   return c.redirect("/feed");
+});
+
+// ---- one post: a link that you can send to a different person ----
+// The bin needs a log in, but a single post does not. Thus a link to a post
+// operates for each person who receives it, in the same manner as a profile.
+app.get("/p/:id", async (c) => {
+  const viewer = c.get("user");
+  const id = Number(c.req.param("id"));
+
+  const post =
+    Number.isSafeInteger(id) && id > 0
+      ? await c.env.DB.prepare(
+          `SELECT p.id, p.body, p.created_at, u.username
+           FROM posts p JOIN users u ON u.id = p.user_id
+           WHERE p.id = ?`
+        )
+          .bind(id)
+          .first<PostRow>()
+      : null;
+
+  if (!post) {
+    return c.html(
+      layout({
+        title: "not found",
+        body: `<h1>this post does not exist</h1>
+<p>the person deleted it, or the link is not correct. <a href="/feed">go to the bin</a>.</p>`,
+        username: viewer?.username,
+      }),
+      404
+    );
+  }
+
+  const body = `
+<h1>a post by ${esc(post.username)}</h1>
+<div class="post">
+  ${postMeta(post)}
+  <p class="body">${esc(post.body)}</p>
+</div>
+<hr>
+<p class="faint">
+  <a href="/u/${esc(post.username)}">more posts by ${esc(post.username)}</a> &middot;
+  <a href="/feed">the bin</a>
+</p>
+`;
+  return c.html(
+    layout({ title: `post by ${post.username}`, body, username: viewer?.username })
+  );
 });
 
 // ---- profiles ----
