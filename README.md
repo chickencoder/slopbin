@@ -18,8 +18,13 @@ merges the ones that are safe and interesting. The
 - **Hono** — tiny router
 - No frontend framework, no build step for CSS, no client JS
 
-Auth is ~100 lines of hand-rolled PBKDF2 + session cookies (`src/auth.ts`).
-Deliberately boring; easy to read, easy to replace.
+Identity is GitHub: you log in with GitHub OAuth, and your slopbin username
+is your GitHub login. Sessions are tokens in D1 (`src/auth.ts`). New accounts
+still need an invite code — the migrations seed a single `genesis` code.
+
+The `/changelog` page is generated from git history at deploy time
+(`scripts/changelog.mjs`, wired up as the wrangler `[build]` command), so it
+always shows exactly what's deployed.
 
 ## Run it locally
 
@@ -29,17 +34,31 @@ npm run db:migrate        # applies migrations to a local D1
 npm run dev               # http://localhost:8787
 ```
 
-The first migration seeds a single invite code: `genesis`. Sign up with it.
-Every user gets 3 invite codes at signup, visible at `/invites`.
+For GitHub login locally, create a GitHub OAuth app with callback
+`http://localhost:8787/auth/github/callback` and put its credentials in
+`.dev.vars`:
+
+```
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+```
+
+Sign up with the seeded invite code `genesis`. Every user gets 3 invite
+codes at signup, visible at `/invites`.
 
 ## Deploy
 
 ```sh
 wrangler d1 create experiment      # paste the id into wrangler.toml
 npm run db:migrate:remote
+wrangler secret put GITHUB_CLIENT_ID
+wrangler secret put GITHUB_CLIENT_SECRET
 wrangler secret put GITHUB_WEBHOOK_SECRET
 npm run deploy
 ```
+
+The production GitHub OAuth app's callback URL must be
+`https://slopbin.com/auth/github/callback`.
 
 ### Leaderboard webhook
 
@@ -51,7 +70,7 @@ The leaderboard counts merged PRs. Add a GitHub webhook on this repo:
 - Events: pull requests only
 
 When a PR merges, the author's `merged_prs` count is incremented — matched by
-the GitHub username users set at `/settings`.
+GitHub user id, since slopbin accounts are GitHub accounts.
 
 ## Contributing
 
@@ -61,8 +80,10 @@ That's the whole idea. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```
 migrations/       D1 schema (SQL, numbered)
+scripts/          changelog generator (runs at build time)
 src/index.ts      all routes
-src/auth.ts       passwords + sessions
+src/auth.ts       github oauth + sessions
 src/html.ts       layout + escaping helpers
 src/style.ts      the one stylesheet
+src/changelog.json  generated from git log; don't edit by hand
 ```

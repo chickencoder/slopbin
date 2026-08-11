@@ -1,0 +1,27 @@
+[
+  {
+    "hash": "d9c60c1",
+    "date": "2026-08-11",
+    "subject": "Rename to slopbin"
+  },
+  {
+    "hash": "bc4a2ce",
+    "date": "2026-08-11",
+    "subject": "Fix white button text in dark-mode browsers"
+  },
+  {
+    "hash": "2d56766",
+    "date": "2026-08-11",
+    "subject": "Rename to slopbucket, homepage gets some personality and air"
+  },
+  {
+    "hash": "1a48c36",
+    "date": "2026-08-11",
+    "subject": "Set real D1 database_id"
+  },
+  {
+    "hash": "aad7b91",
+    "date": "2026-08-11",
+    "subject": "Initial version: minimalist invite-only social experiment"
+  }
+]

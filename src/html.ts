@@ -56,6 +56,7 @@ ${body}
 <footer>
   slopbin is <a href="https://github.com/chickencoder/experiment">open source</a>.
   want it to be different? <a href="/how">send a pull request</a>.
+  see what changed in the <a href="/changelog">changelog</a>.
 </footer>
 </body>
 </html>`;

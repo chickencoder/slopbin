@@ -1,20 +1,24 @@
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import {
+  cookie,
   createSession,
   deleteSession,
   getSessionUser,
-  hashPassword,
   newToken,
   sessionCookie,
-  verifyPassword,
+  signValue,
+  verifyValue,
   type SessionUser,
 } from "./auth";
+import changelog from "./changelog.json";
 import { esc, layout, timeAgo } from "./html";
 import { CSS } from "./style";
 
 type Env = {
   DB: D1Database;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
   GITHUB_WEBHOOK_SECRET?: string;
 };
 
@@ -66,7 +70,8 @@ app.get("/", (c) => {
 <p>
   every PR gets reviewed by Claude. safe and interesting changes get merged and
   deployed for everyone. the <a href="/leaderboard">leaderboard</a> is the only
-  scoreboard here: one point per merged PR.
+  scoreboard here: one point per merged PR. every deploy lands in
+  <a href="/changelog">the changelog</a>.
 </p>
 <p>
   in other words: this is the worst slopbin will ever be.
@@ -76,7 +81,7 @@ app.get("/", (c) => {
 ${
   user
     ? `<p><a href="/feed">go to the bin &raquo;</a></p>`
-    : `<p><a href="/login">log in</a> &middot; <a href="/signup">sign up with an invite code</a></p>`
+    : `<p><a href="/login">log in with github</a> &middot; <a href="/signup">sign up with an invite code</a></p>`
 }
 </div>
 `;
@@ -91,8 +96,8 @@ app.get("/how", (c) => {
 <ol>
   <li>fork <a href="https://github.com/chickencoder/experiment">the repository</a>.</li>
   <li>make any change you want. a page, a feature, a realm, a community, a fix. anything.</li>
-  <li>open a pull request. put your <b>slopbin username</b> in the PR description so it counts on the <a href="/leaderboard">leaderboard</a> (and set your github username in <a href="/settings">settings</a>).</li>
-  <li>Claude reviews every PR. changes that are <b>safe</b> (no security holes, no data loss, no spying on users) and <b>interesting</b> (make the site better or weirder in a good way) get merged and deployed.</li>
+  <li>open a pull request. your slopbin account <i>is</i> your github account, so merged PRs count toward the <a href="/leaderboard">leaderboard</a> automatically.</li>
+  <li>Claude reviews every PR. changes that are <b>safe</b> (no security holes, no data loss, no spying on users) and <b>interesting</b> (make the site better or weirder in a good way) get merged and deployed. every deploy shows up in the <a href="/changelog">changelog</a>.</li>
 </ol>
 <h2>ground rules for PRs</h2>
 <ul>
@@ -106,41 +111,156 @@ app.get("/how", (c) => {
   return c.html(layout({ title: "how it works", body, username: user?.username }));
 });
 
-// ---- signup ----
-function signupForm(error?: string, invite?: string): string {
-  return `
-<h1>sign up</h1>
-<p>you need an invite code. ask someone who's already in.</p>
-${error ? `<p class="error">${esc(error)}</p>` : ""}
-<form class="stack" method="post" action="/signup">
-  <label>invite code <input type="text" name="invite" value="${esc(invite ?? "")}" required></label>
-  <label>username <input type="text" name="username" maxlength="20" required></label>
-  <label>password <input type="password" name="password" minlength="8" required></label>
-  <button type="submit">sign up</button>
-</form>
-<p><small>already in? <a href="/login">log in</a></small></p>
+// ---- auth: github oauth ----
+
+app.get("/login", (c) => {
+  if (c.get("user")) return c.redirect("/feed");
+  const body = `
+<h1>log in</h1>
+<p>slopbin accounts are github accounts.</p>
+<p><a href="/auth/github">log in with github &raquo;</a></p>
+<p><small>new here? you'll need an invite code after github says hello. <a href="/signup">details</a>.</small></p>
 `;
-}
+  return c.html(layout({ title: "log in", body }));
+});
 
 app.get("/signup", (c) => {
   if (c.get("user")) return c.redirect("/feed");
-  return c.html(
-    layout({ title: "sign up", body: signupForm(undefined, c.req.query("invite")) })
-  );
+  const invite = c.req.query("invite");
+  if (invite) c.header("Set-Cookie", cookie("invite_hint", encodeURIComponent(invite), 600));
+  const body = `
+<h1>sign up</h1>
+<p>two things get you in:</p>
+<ol>
+  <li>a github account (that's your identity here)</li>
+  <li>an invite code (ask someone who's already in)</li>
+</ol>
+<p><a href="/auth/github">continue with github &raquo;</a></p>
+`;
+  return c.html(layout({ title: "sign up", body }));
 });
 
-app.post("/signup", async (c) => {
+app.get("/auth/github", (c) => {
+  if (!c.env.GITHUB_CLIENT_ID || !c.env.GITHUB_CLIENT_SECRET) {
+    return c.html(
+      layout({ title: "not configured", body: `<h1>github login isn't configured yet</h1><p class="faint">the GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET secrets are missing.</p>` }),
+      503
+    );
+  }
+  const state = newToken().slice(0, 32);
+  c.header("Set-Cookie", cookie("gh_state", state, 600));
+  const url = new URL("https://github.com/login/oauth/authorize");
+  url.searchParams.set("client_id", c.env.GITHUB_CLIENT_ID);
+  url.searchParams.set("redirect_uri", new URL(c.req.url).origin + "/auth/github/callback");
+  url.searchParams.set("state", state);
+  return c.redirect(url.toString());
+});
+
+interface GithubUser {
+  id: number;
+  login: string;
+}
+
+app.get("/auth/github/callback", async (c) => {
+  const secret = c.env.GITHUB_CLIENT_SECRET;
+  const clientId = c.env.GITHUB_CLIENT_ID;
+  if (!secret || !clientId) return c.text("not configured", 503);
+
+  const oops = (msg: string) =>
+    c.html(layout({ title: "login failed", body: `<h1>login failed</h1><p class="error">${esc(msg)}</p><p><a href="/login">try again</a></p>` }), 400);
+
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+  if (!code || !state || state !== getCookie(c, "gh_state")) {
+    return oops("bad oauth state. cookies enabled?");
+  }
+
+  const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ client_id: clientId, client_secret: secret, code }),
+  });
+  const tokenData = (await tokenRes.json()) as { access_token?: string };
+  if (!tokenData.access_token) return oops("github didn't give us a token.");
+
+  const userRes = await fetch("https://api.github.com/user", {
+    headers: {
+      Authorization: `Bearer ${tokenData.access_token}`,
+      Accept: "application/vnd.github+json",
+      "User-Agent": "slopbin",
+    },
+  });
+  if (!userRes.ok) return oops("couldn't fetch your github profile.");
+  const gh = (await userRes.json()) as GithubUser;
+  if (!gh.id || !gh.login) return oops("github profile looked wrong.");
+
+  const existing = await c.env.DB.prepare("SELECT id, username FROM users WHERE github_id = ?")
+    .bind(gh.id)
+    .first<{ id: number; username: string }>();
+
+  if (existing) {
+    if (existing.username !== gh.login) {
+      // GitHub login changed since last visit; follow it.
+      await c.env.DB.prepare("UPDATE users SET username = ? WHERE id = ?")
+        .bind(gh.login, existing.id)
+        .run();
+    }
+    const token = await createSession(c.env.DB, existing.id);
+    c.header("Set-Cookie", sessionCookie(token), { append: true });
+    c.header("Set-Cookie", cookie("gh_state", "", 0), { append: true });
+    return c.redirect("/feed");
+  }
+
+  // New face: park their github identity in a signed cookie and ask for an invite.
+  const pending = await signValue(secret, { id: gh.id, login: gh.login, exp: now() + 600 });
+  c.header("Set-Cookie", cookie("pending", pending, 600), { append: true });
+  c.header("Set-Cookie", cookie("gh_state", "", 0), { append: true });
+  return c.redirect("/signup/complete");
+});
+
+interface Pending {
+  id: number;
+  login: string;
+  exp: number;
+}
+
+async function readPending(secret: string, raw: string | undefined): Promise<Pending | null> {
+  if (!raw) return null;
+  const p = await verifyValue<Pending>(secret, raw);
+  if (!p || p.exp < now()) return null;
+  return p;
+}
+
+app.get("/signup/complete", async (c) => {
+  const secret = c.env.GITHUB_CLIENT_SECRET;
+  if (!secret) return c.text("not configured", 503);
+  const pending = await readPending(secret, getCookie(c, "pending"));
+  if (!pending) return c.redirect("/signup");
+
+  const hint = getCookie(c, "invite_hint") ?? "";
+  const error = c.req.query("error");
+  const body = `
+<h1>almost in</h1>
+<p>hello, <b>${esc(pending.login)}</b>. one more thing: an invite code.</p>
+${error ? `<p class="error">${esc(error)}</p>` : ""}
+<form class="stack" method="post" action="/signup/complete">
+  <label>invite code <input type="text" name="invite" value="${esc(decodeURIComponent(hint))}" required></label>
+  <button type="submit">join slopbin</button>
+</form>
+`;
+  return c.html(layout({ title: "sign up", body }));
+});
+
+app.post("/signup/complete", async (c) => {
+  const secret = c.env.GITHUB_CLIENT_SECRET;
+  if (!secret) return c.text("not configured", 503);
+  const pending = await readPending(secret, getCookie(c, "pending"));
+  if (!pending) return c.redirect("/signup");
+
   const form = await c.req.parseBody();
   const invite = String(form.invite ?? "").trim();
-  const username = String(form.username ?? "").trim();
-  const password = String(form.password ?? "");
-
   const fail = (msg: string) =>
-    c.html(layout({ title: "sign up", body: signupForm(msg, invite) }), 400);
-
-  if (!/^[a-zA-Z0-9_]{2,20}$/.test(username))
-    return fail("username must be 2-20 characters: letters, numbers, underscores.");
-  if (password.length < 8) return fail("password must be at least 8 characters.");
+    c.redirect(`/signup/complete?error=${encodeURIComponent(msg)}`);
 
   const inviteRow = await c.env.DB.prepare(
     "SELECT code, created_by, used_by FROM invites WHERE code = ?"
@@ -150,18 +270,22 @@ app.post("/signup", async (c) => {
   if (!inviteRow) return fail("that invite code doesn't exist.");
   if (inviteRow.used_by !== null) return fail("that invite code has already been used.");
 
-  const existing = await c.env.DB.prepare("SELECT id FROM users WHERE username = ?")
-    .bind(username)
-    .first();
-  if (existing) return fail("that username is taken.");
+  // Another tab may have finished signup already.
+  const dupe = await c.env.DB.prepare("SELECT id FROM users WHERE github_id = ?")
+    .bind(pending.id)
+    .first<{ id: number }>();
+  if (dupe) {
+    const token = await createSession(c.env.DB, dupe.id);
+    c.header("Set-Cookie", sessionCookie(token), { append: true });
+    c.header("Set-Cookie", cookie("pending", "", 0), { append: true });
+    return c.redirect("/feed");
+  }
 
-  const passwordHash = await hashPassword(password);
   const ts = now();
-
   const inserted = await c.env.DB.prepare(
-    "INSERT INTO users (username, password_hash, invited_by, created_at) VALUES (?, ?, ?, ?) RETURNING id"
+    "INSERT INTO users (github_id, username, invited_by, created_at) VALUES (?, ?, ?, ?) RETURNING id"
   )
-    .bind(username, passwordHash, inviteRow.created_by, ts)
+    .bind(pending.id, pending.login, inviteRow.created_by, ts)
     .first<{ id: number }>();
   const userId = inserted!.id;
 
@@ -189,46 +313,9 @@ app.post("/signup", async (c) => {
   await c.env.DB.batch(statements);
 
   const token = await createSession(c.env.DB, userId);
-  c.header("Set-Cookie", sessionCookie(token));
-  return c.redirect("/feed");
-});
-
-// ---- login / logout ----
-function loginForm(error?: string): string {
-  return `
-<h1>log in</h1>
-${error ? `<p class="error">${esc(error)}</p>` : ""}
-<form class="stack" method="post" action="/login">
-  <label>username <input type="text" name="username" required></label>
-  <label>password <input type="password" name="password" required></label>
-  <button type="submit">log in</button>
-</form>
-<p><small>no account? <a href="/signup">sign up with an invite code</a></small></p>
-`;
-}
-
-app.get("/login", (c) => {
-  if (c.get("user")) return c.redirect("/feed");
-  return c.html(layout({ title: "log in", body: loginForm() }));
-});
-
-app.post("/login", async (c) => {
-  const form = await c.req.parseBody();
-  const username = String(form.username ?? "").trim();
-  const password = String(form.password ?? "");
-
-  const user = await c.env.DB.prepare(
-    "SELECT id, password_hash FROM users WHERE username = ?"
-  )
-    .bind(username)
-    .first<{ id: number; password_hash: string }>();
-
-  if (!user || !(await verifyPassword(password, user.password_hash))) {
-    return c.html(layout({ title: "log in", body: loginForm("wrong username or password.") }), 401);
-  }
-
-  const token = await createSession(c.env.DB, user.id);
-  c.header("Set-Cookie", sessionCookie(token));
+  c.header("Set-Cookie", sessionCookie(token), { append: true });
+  c.header("Set-Cookie", cookie("pending", "", 0), { append: true });
+  c.header("Set-Cookie", cookie("invite_hint", "", 0), { append: true });
   return c.redirect("/feed");
 });
 
@@ -271,7 +358,7 @@ app.get("/feed", async (c) => {
   ).all<PostRow>();
 
   const body = `
-<h1>feed</h1>
+<h1>the bin</h1>
 <form class="stack" method="post" action="/posts">
   <textarea name="body" maxlength="500" placeholder="up to 500 characters" required></textarea>
   <button type="submit">post</button>
@@ -304,16 +391,10 @@ app.get("/u/:username", async (c) => {
   const username = c.req.param("username");
 
   const profile = await c.env.DB.prepare(
-    "SELECT id, username, github_username, merged_prs, created_at FROM users WHERE username = ?"
+    "SELECT id, username, merged_prs, created_at FROM users WHERE username = ?"
   )
     .bind(username)
-    .first<{
-      id: number;
-      username: string;
-      github_username: string | null;
-      merged_prs: number;
-      created_at: number;
-    }>();
+    .first<{ id: number; username: string; merged_prs: number; created_at: number }>();
 
   if (!profile) {
     return c.html(
@@ -330,12 +411,9 @@ app.get("/u/:username", async (c) => {
     .bind(profile.id)
     .all<PostRow>();
 
-  const gh = profile.github_username
-    ? ` &middot; <a href="https://github.com/${esc(profile.github_username)}">github</a>`
-    : "";
   const body = `
 <h1>${esc(profile.username)}</h1>
-<p class="faint">joined ${timeAgo(profile.created_at)} &middot; ${profile.merged_prs} merged PR${profile.merged_prs === 1 ? "" : "s"}${gh}</p>
+<p class="faint">joined ${timeAgo(profile.created_at)} &middot; ${profile.merged_prs} merged PR${profile.merged_prs === 1 ? "" : "s"} &middot; <a href="https://github.com/${esc(profile.username)}">github</a></p>
 <hr>
 ${renderPosts(results)}
 `;
@@ -402,40 +480,41 @@ ${
   return c.html(layout({ title: "leaderboard", body, username: viewer?.username }));
 });
 
+// ---- changelog ----
+app.get("/changelog", (c) => {
+  const viewer = c.get("user");
+  let lastDate = "";
+  const items = (changelog as { hash: string; date: string; subject: string }[])
+    .map((e) => {
+      const dateHeader = e.date !== lastDate ? `<h2>${esc(e.date)}</h2>` : "";
+      lastDate = e.date;
+      return `${dateHeader}
+<p class="post"><code><a href="https://github.com/chickencoder/experiment/commit/${esc(e.hash)}">${esc(e.hash)}</a></code> ${esc(e.subject)}</p>`;
+    })
+    .join("\n");
+
+  const body = `
+<h1>changelog</h1>
+<p>every deploy, in public. this list is generated from git history at deploy
+time, so it's exactly what's running right now.</p>
+${items || `<p class="faint">no history yet, somehow.</p>`}
+`;
+  return c.html(layout({ title: "changelog", body, username: viewer?.username }));
+});
+
 // ---- settings ----
 app.get("/settings", async (c) => {
   const user = requireUser(c);
   if (!user) return c.redirect("/login");
 
-  const saved = c.req.query("saved");
   const body = `
 <h1>settings</h1>
-${saved ? `<p class="notice">saved.</p>` : ""}
-<form class="stack" method="post" action="/settings">
-  <label>github username
-    <input type="text" name="github_username" maxlength="39" value="${esc(user.github_username ?? "")}">
-  </label>
-  <p><small>used to credit your merged PRs on the <a href="/leaderboard">leaderboard</a>.</small></p>
-  <button type="submit">save</button>
-</form>
-<hr>
+<p>you are <b>${esc(user.username)}</b>, which is to say
+<a href="https://github.com/${esc(user.username)}">github.com/${esc(user.username)}</a>.
+merged PRs are credited to you automatically.</p>
 <form method="post" action="/logout"><button type="submit">log out</button></form>
 `;
   return c.html(layout({ title: "settings", body, username: user.username }));
-});
-
-app.post("/settings", async (c) => {
-  const user = requireUser(c);
-  if (!user) return c.redirect("/login");
-
-  const form = await c.req.parseBody();
-  const gh = String(form.github_username ?? "").trim();
-  if (gh && !/^[a-zA-Z0-9-]{1,39}$/.test(gh)) return c.redirect("/settings");
-
-  await c.env.DB.prepare("UPDATE users SET github_username = ? WHERE id = ?")
-    .bind(gh || null, user.id)
-    .run();
-  return c.redirect("/settings?saved=1");
 });
 
 // ---- github webhook: count merged PRs for the leaderboard ----
@@ -471,13 +550,13 @@ app.post("/webhooks/github", async (c) => {
   const payload = JSON.parse(new TextDecoder().decode(raw));
   if (payload.action !== "closed" || !payload.pull_request?.merged) return c.text("ignored");
 
-  const ghLogin = payload.pull_request.user?.login;
-  if (!ghLogin) return c.text("no author");
+  const ghId = payload.pull_request.user?.id;
+  if (!ghId) return c.text("no author");
 
   const result = await c.env.DB.prepare(
-    "UPDATE users SET merged_prs = merged_prs + 1 WHERE github_username = ?"
+    "UPDATE users SET merged_prs = merged_prs + 1 WHERE github_id = ?"
   )
-    .bind(ghLogin)
+    .bind(ghId)
     .run();
 
   return c.text(result.meta.changes ? "counted" : "no matching user");

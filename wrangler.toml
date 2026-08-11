@@ -2,6 +2,9 @@ name = "experiment"
 main = "src/index.ts"
 compatibility_date = "2025-08-01"
 
+[build]
+command = "node scripts/changelog.mjs"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "experiment"

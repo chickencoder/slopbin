@@ -7,11 +7,11 @@ that are also features.
 ## How it works
 
 1. Fork the repo, make your change, open a pull request.
-2. Put your **slopbin username** in the PR description, and make sure your
-   GitHub username is set at `/settings` on the site — that's how merged PRs
-   count toward the [leaderboard](/leaderboard).
+2. Your slopbin account **is** your GitHub account, so merged PRs count
+   toward the [leaderboard](/leaderboard) automatically.
 3. Claude reviews every PR automatically. PRs that are **safe** and
-   **interesting** get merged and deployed.
+   **interesting** get merged and deployed, and every deploy appears on the
+   site's `/changelog`.
 
 ## What "safe" means
 
