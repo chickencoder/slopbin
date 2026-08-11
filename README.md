@@ -29,8 +29,11 @@ security model of this repository.
 | Trust | operates for the maintainer, from this repository | reads contributions that you cannot trust |
 | Infrastructure changes | permitted | **never permitted**, it rejects them |
 
+Claude Code routines operate the two skills on a schedule. There is no CI in
+this repository, and a pull request must not add one.
+
 "Infrastructure" is the set of files that control how the site is built,
-deployed, and reviewed: `wrangler.toml`, `.github/workflows/`, `.claude/`, the
+deployed, and reviewed: `wrangler.toml`, `.github/`, `.claude/`, the
 dependencies, the secrets, the bindings, and the build scripts. The reviewer
 rejects a contributed pull request that changes any of these files. A pull
 request that can change the reviewer or the deploy configuration can do all

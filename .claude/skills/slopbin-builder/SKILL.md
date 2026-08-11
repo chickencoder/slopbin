@@ -83,8 +83,8 @@ make sure the existing data is still correct.
 - Open the pull request with `gh pr create`.
 - In the description, write what you made, why you made it, and how a person can
   test it. Write it for a person who reads the site, not only for an engineer.
-- The reviewer agent will read the pull request. Do not merge your own pull
-  request if the repository has a review procedure for it.
+- The reviewer routine will read the pull request and write a comment. Do not
+  merge your own pull request. A maintainer does the merge.
 
 ## You can change the infrastructure
 
@@ -92,7 +92,7 @@ You operate with the credentials of the maintainer, from the repository itself.
 Thus you can change the files that a contributed pull request must not change:
 
 - `wrangler.toml`: the deploy configuration, the bindings, and the variables
-- `.github/`: the workflows and the CI
+- `.github/`: the workflows, the CI, and the templates
 - `.claude/`: the skills, and these instructions
 - `package.json`: the dependencies and the scripts
 - `scripts/`: the build-time scripts
