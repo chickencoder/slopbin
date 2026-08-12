@@ -562,6 +562,16 @@ try {
   paper.position.set(-0.5, 0.35, 0);
   scene.add(paper);
 
+  // the opening shot: the whole photograph, full frame, in front of the
+  // camera. a downloaded video thus starts with the slop itself, before
+  // the hand takes it.
+  const introMat = new THREE.MeshBasicMaterial({ transparent: true });
+  const intro = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), introMat);
+  intro.position.set(0, 0, -1);
+  camera.add(intro);
+  scene.add(camera);
+  const introH = 2 * Math.tan((camera.fov * Math.PI) / 360); // frustum height at z=-1
+
   // texture: the photograph, or the bare URL when the camera failed
   const fallbackTexture = () => {
     const cv = document.createElement("canvas");
@@ -575,7 +585,15 @@ try {
     g.fillText(PAGE_URL.slice(0, 64), cv.width / 2, cv.height / 2);
     return new THREE.CanvasTexture(cv);
   };
-  const useTexture = (t) => { t.colorSpace = THREE.SRGBColorSpace; mat.map = t; mat.needsUpdate = true; };
+  const useTexture = (t) => {
+    t.colorSpace = THREE.SRGBColorSpace;
+    mat.map = t; mat.needsUpdate = true;
+    introMat.map = t; introMat.needsUpdate = true;
+    // fit the photograph inside the frame, with its own aspect ratio
+    const a = t.image && t.image.width ? t.image.width / t.image.height : 4 / 3;
+    const h = Math.min(introH, (introH * camera.aspect) / a);
+    intro.scale.set(h * a, h, 1);
+  };
   if (SHOT) {
     new THREE.TextureLoader().load(SHOT, useTexture, undefined, () => useTexture(fallbackTexture()));
   } else {
@@ -589,12 +607,16 @@ try {
   let recorder = null;
 
   // the script of the play:
-  //   0.0 - 1.2s  the page flutters, unaware
+  //   0.0 - 1.1s  the opening shot: the photograph, full frame
+  //   0.0 - 1.2s  behind it, the page flutters, unaware
   //   1.2 - 2.6s  the hand scrunches it into a ball
   //   2.6 - 3.6s  the throw, a clean arc into the bin
   //   3.6s +      the bin wobbles, the verdict appears
   function animate() {
     const t = (performance.now() - t0) / 1000;
+
+    intro.visible = t < 1.1;
+    introMat.opacity = t < 0.7 ? 1 : Math.max(0, 1 - (t - 0.7) / 0.4);
 
     const k = ease((t - 1.2) / 1.4);
     for (let i = 0; i < pos.count; i++) {
