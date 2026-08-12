@@ -234,6 +234,21 @@ interface PostRow {
   username: string;
 }
 
+const PAGE = 50;
+
+/** The ?before cursor of a request, or null for the first page. */
+function beforeCursor(c: { req: { query: (k: string) => string | undefined } }): number | null {
+  const n = Number(c.req.query("before"));
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+/** The link to the older posts, or nothing when this page is the last page.
+ *  The ids grow with time, thus the last id on a page is the cursor. */
+function olderLink(posts: PostRow[], path: string): string {
+  if (posts.length < PAGE) return "";
+  return `<p><a href="${path}?before=${posts[posts.length - 1].id}">older posts &raquo;</a></p>`;
+}
+
 /** The author and the time of a post. The time is the permalink of the post. */
 function postMeta(p: PostRow): string {
   return `<span class="meta"><a href="/u/${esc(p.username)}">${esc(p.username)}</a> &middot; <a href="/p/${p.id}"><time datetime="${isoTime(p.created_at)}">${timeAgo(p.created_at)}</time></a></span>`;
@@ -256,11 +271,14 @@ app.get("/feed", async (c) => {
   const user = requireUser(c);
   if (!user) return c.redirect("/login");
 
-  const { results } = await c.env.DB.prepare(
+  const before = beforeCursor(c);
+  const stmt = c.env.DB.prepare(
     `SELECT p.id, p.body, p.created_at, u.username
      FROM posts p JOIN users u ON u.id = p.user_id
-     ORDER BY p.created_at DESC, p.id DESC LIMIT 50`
-  ).all<PostRow>();
+     ${before ? "WHERE p.id < ?" : ""}
+     ORDER BY p.created_at DESC, p.id DESC LIMIT ${PAGE}`
+  );
+  const { results } = await (before ? stmt.bind(before) : stmt).all<PostRow>();
 
   const hold = await currentHold(c.env.DB);
   const peelLead = hold
@@ -276,6 +294,7 @@ ${peelLead}
 </form>
 <hr>
 ${renderPosts(results)}
+${olderLink(results, "/feed")}
 `;
   return c.html(layout({ title: "feed", body, username: user.username }));
 });
@@ -527,19 +546,21 @@ app.get("/u/:username", async (c) => {
     );
   }
 
-  const { results } = await c.env.DB.prepare(
+  const before = beforeCursor(c);
+  const stmt = c.env.DB.prepare(
     `SELECT p.id, p.body, p.created_at, u.username
      FROM posts p JOIN users u ON u.id = p.user_id
-     WHERE p.user_id = ? ORDER BY p.created_at DESC, p.id DESC LIMIT 50`
-  )
-    .bind(profile.id)
-    .all<PostRow>();
+     WHERE p.user_id = ? ${before ? "AND p.id < ?" : ""}
+     ORDER BY p.created_at DESC, p.id DESC LIMIT ${PAGE}`
+  );
+  const { results } = await (before ? stmt.bind(profile.id, before) : stmt.bind(profile.id)).all<PostRow>();
 
   const body = `
 <h1>${esc(profile.username)}</h1>
 <p class="faint">joined ${timeAgo(profile.created_at)} &middot; ${profile.merged_prs} merged PR${profile.merged_prs === 1 ? "" : "s"} &middot; <a href="https://github.com/${esc(profile.username)}">github</a></p>
 <hr>
 ${renderPosts(results)}
+${olderLink(results, `/u/${esc(profile.username)}`)}
 `;
   return c.html(layout({ title: profile.username, body, username: viewer?.username }));
 });
