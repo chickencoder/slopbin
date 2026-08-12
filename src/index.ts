@@ -426,6 +426,8 @@ ${form}
 <hr>
 <h2>freshly binned</h2>
 ${items}
+<p class="faint">🤿 the bin is deeper than this page. <a href="/dive">dive in</a> and
+your hand finds one random exhibit.</p>
 `;
   return c.html(layout({ title: "the bin", body, username: viewer?.username }));
 });
@@ -646,6 +648,52 @@ try {
   return c.html(
     layout({ title: `exhibit #${slop.id}`, body, username: viewer?.username })
   );
+});
+
+// ---- the dive ----
+// The bin is deep, and the page of the bin shows only the top of it. A dive
+// reaches past the fresh slop and takes one random exhibit out, from any
+// time. You look at it, and you throw it back. Thus an old exhibit gets a
+// second viewer, and the bottom of the bin stays alive.
+app.get("/dive", async (c) => {
+  const viewer = c.get("user");
+
+  const slop = await c.env.DB.prepare(
+    `SELECT s.id, s.url, s.verdict, s.has_shot, s.created_at, u.username
+     FROM slops s JOIN users u ON u.id = s.user_id
+     ORDER BY RANDOM() LIMIT 1`
+  ).first<SlopRow>();
+
+  if (!slop) {
+    return c.html(
+      layout({
+        title: "the dive",
+        body: `<h1>🤿 the dive</h1>
+<p>you reach into the bin and your hand finds nothing. the bin is empty.
+<a href="/bin">throw the first slop in</a>.</p>`,
+        username: viewer?.username,
+      })
+    );
+  }
+
+  const total = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM slops").first<{ n: number }>();
+  const n = total?.n ?? 0;
+
+  const body = `
+<h1>🤿 the dive</h1>
+<p>you reach into the bin, past ${n} exhibit${n === 1 ? "" : "s"}, and your hand
+finds <a href="/slop/${slop.id}">exhibit #${slop.id}</a>. it has been in the bin
+for ${duration(now() - slop.created_at)}.</p>
+<div class="slop">
+  <span class="meta"><a href="/u/${esc(slop.username)}">${esc(slop.username)}</a> binned
+  <a href="${esc(slop.url)}" rel="nofollow noreferrer">${esc(slopHost(slop.url))}</a> &middot;
+  <a href="/slop/${slop.id}"><time datetime="${isoTime(slop.created_at)}">${timeAgo(slop.created_at)}</time></a></span>
+  <a href="/slop/${slop.id}">${slopShot(slop)}</a>
+  <p class="body">${esc(slop.verdict)}</p>
+</div>
+<p><a href="/dive">throw it back and dive again &raquo;</a> &middot; <a href="/bin">back to the bin</a></p>
+`;
+  return c.html(layout({ title: "the dive", body, username: viewer?.username }));
 });
 
 // ---- the golden banana peel ----
