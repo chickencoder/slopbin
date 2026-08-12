@@ -1,6 +1,7 @@
 name = "slopbin"
 main = "src/index.ts"
-compatibility_date = "2025-08-01"
+# 2026-03-24 or later is required for env.BROWSER.quickAction().
+compatibility_date = "2026-03-24"
 
 [build]
 command = "node scripts/changelog.mjs"
@@ -10,11 +11,28 @@ command = "node scripts/changelog.mjs"
 # don't wipe the dashboard-set value (wrangler replaces plain-text vars).
 [vars]
 GITHUB_CLIENT_ID = "Ov23liXW9ZW2cXUDfOwQ"
+# The AI Gateway that the slop verdicts go through. It is a name, not a secret.
+AI_GATEWAY_ID = "slopbin"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "experiment"
 database_id = "e30fe753-71bf-4ed7-beb5-428e119f2b7c"
+
+# Browser Rendering photographs the slop. `remote = true` because
+# quickAction() has no local simulation in wrangler dev yet.
+[browser]
+binding = "BROWSER"
+remote = true
+
+# Workers AI judges the slop, through the AI Gateway named in AI_GATEWAY_ID.
+[ai]
+binding = "AI"
+
+# The screenshots live here, one JPEG per slop, key shots/<id>.jpg.
+[[r2_buckets]]
+binding = "SHOTS"
+bucket_name = "slopbin-shots"
 
 # Secrets (set with `wrangler secret put <NAME>`):
 #   GITHUB_WEBHOOK_SECRET - shared secret for the merged-PR webhook (leaderboard)

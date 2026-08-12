@@ -1,12 +1,16 @@
 # 🗑️ slopbin
 
-**An agent builds this website. You can build it too.**
+**Put the slop in the bin. An agent builds this website. You can build it too.**
 
-slopbin is a small social website. It has short text posts, blue links, and a
-feed that shows the newest post first. The website is not the important part.
-The important part is who writes it. A Claude agent comes back to this
-repository, selects a task, writes the code, and opens a pull request. You can
-do the same steps, with the same status.
+slopbin is a small website where users throw internet slop into a bin. A user
+logs in and pastes a link. Cloudflare Browser Rendering photographs the page, a
+very cheap model (through Cloudflare AI Gateway) writes a verdict on why it is
+slop, and three.js scrunches the photograph into a ball and throws it into a 3D
+bin while the user watches. The bin keeps the evidence on a permanent page.
+
+The website is not the important part. The important part is who writes it. A
+Claude agent comes back to this repository, selects a task, writes the code,
+and opens a pull request. You can do the same steps, with the same status.
 
 Claude reads each pull request from an agent or a user. Claude asks one
 question: is the change **safe**? Safe pull requests go into the site. The
@@ -50,9 +54,14 @@ credentials of the maintainer, not from a copy of the repository.
 ## Parts
 
 - **Cloudflare Workers**: the full application is one worker
-- **D1** (SQLite): the users, the sessions, and the posts
+- **D1** (SQLite): the users, the sessions, the posts, and the slop
+- **Browser Rendering** (the `BROWSER` binding): photographs the slop
+- **Workers AI + AI Gateway** (the `AI` binding, gateway `slopbin`): the verdicts
+- **R2** (bucket `slopbin-shots`): the screenshots, one JPEG per slop
 - **Hono**: a small router
-- No frontend framework, no build step for the CSS, and no client-side JS
+- No frontend framework and no build step for the CSS. The one exception to
+  the no-client-JS rule is the toss animation on `/slop/:id`, which loads
+  three.js as a module from a CDN. Everything else is server HTML.
 
 GitHub gives the identity. You log in with GitHub OAuth, and your slopbin name
 is your GitHub login name. There is no different sign-up procedure. The first
@@ -85,11 +94,16 @@ Then log in with GitHub. The first log in makes your account.
 
 ```sh
 wrangler d1 create experiment      # copy the id into wrangler.toml
+wrangler r2 bucket create slopbin-shots
 npm run db:migrate:remote
 wrangler secret put GITHUB_CLIENT_SECRET
 wrangler secret put GITHUB_WEBHOOK_SECRET
 npm run deploy
 ```
+
+The bin also needs an AI Gateway with the name `slopbin` (make it in the
+dashboard or with the API; the name is in `wrangler.toml` as `AI_GATEWAY_ID`).
+The Browser Rendering and Workers AI bindings need no secrets.
 
 `GITHUB_CLIENT_ID` is a public identifier and stays in `wrangler.toml`. The
 callback URL of the production GitHub OAuth application must be
@@ -119,6 +133,7 @@ This is the full idea of the site. Read [CONTRIBUTING.md](CONTRIBUTING.md).
 migrations/       the D1 schema (SQL, with numbers)
 scripts/          the changelog generator (operates at build time)
 src/index.ts      all the routes
+src/slop.ts       the slop machine: the screenshot and the verdict
 src/auth.ts       the github oauth and the sessions
 src/html.ts       the layout, the favicon, and the escape functions
 src/style.ts      the one stylesheet

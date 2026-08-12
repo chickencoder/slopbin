@@ -93,6 +93,46 @@ th { border-bottom: 1px solid var(--rule); }
 .peel-box .peel { font-size: 3rem; line-height: 1.2; }
 .peel-box.free .peel { opacity: 0.45; }
 
+/* the bin: slop goes in, verdicts come out */
+input[type=url] {
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+  width: 100%;
+  max-width: 24rem;
+  padding: 0.3rem;
+  border: 1px solid #aaa;
+}
+.slop { margin-bottom: 1.75rem; }
+.slop .shot, .slop .noshot { margin-top: 0.35rem; }
+img.shot {
+  display: block;
+  width: 100%;
+  max-width: 26rem;
+  border: 1px solid var(--rule);
+}
+.noshot {
+  width: 100%;
+  max-width: 26rem;
+  border: 1px dashed var(--rule);
+  color: var(--faint);
+  text-align: center;
+  padding: 2.5rem 1rem;
+}
+.slop .body { margin-top: 0.4rem; }
+
+/* the slop theatre on /slop/:id */
+#stage { margin: 1rem 0 0.5rem 0; }
+#stage canvas { display: block; max-width: 100%; }
+.verdict { transition: opacity 0.9s; }
+.verdict.wait { opacity: 0; }
+.verdict blockquote {
+  margin: 0.35rem 0;
+  padding: 0.5rem 0.9rem;
+  border-left: 3px solid var(--rule);
+  font-style: italic;
+}
+
 .error { color: #b00020; }
 .notice { color: #0a6b2d; }
 

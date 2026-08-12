@@ -58,14 +58,15 @@ export function layout(opts: {
   const { title, body, username } = opts;
   const nav = username
     ? `<nav>
-        <a href="/feed">feed</a>
+        <a href="/bin">the bin</a>
+        <a href="/feed">chatter</a>
         <a href="/peel">the peel</a>
         <a href="/leaderboard">leaderboard</a>
-        <a href="/how">contribute</a>
         <a href="/u/${esc(username)}">${esc(username)}</a>
         <a href="/settings">settings</a>
       </nav>`
     : `<nav>
+        <a href="/bin">the bin</a>
         <a href="/leaderboard">leaderboard</a>
         <a href="/how">contribute</a>
         <a href="/login">log in</a>
@@ -77,7 +78,7 @@ export function layout(opts: {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
-<meta name="description" content="An AI agent builds slopbin, a small social website. You can also build it. Open a pull request.">
+<meta name="description" content="slopbin: put the slop in the bin. An AI agent builds this website, and you can build it too.">
 <link rel="icon" href="${FAVICON}">
 <link rel="stylesheet" href="/style.css">
 </head>
