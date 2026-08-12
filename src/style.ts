@@ -57,7 +57,7 @@ hr { border: none; border-top: 1px solid var(--rule); }
 .post .body { margin: 0.15rem 0 0 0; white-space: pre-wrap; word-wrap: break-word; }
 
 form.stack label { display: block; margin-top: 0.75rem; }
-input[type=text], input[type=password], textarea {
+input[type=text], input[type=password] {
   font: inherit;
   color: var(--ink);
   background: #fff;
@@ -66,7 +66,6 @@ input[type=text], input[type=password], textarea {
   padding: 0.3rem;
   border: 1px solid #aaa;
 }
-textarea { max-width: 100%; height: 5rem; }
 button {
   font: inherit;
   color: var(--ink);
@@ -82,18 +81,10 @@ table { border-collapse: collapse; }
 th, td { text-align: left; padding: 0.25rem 1.25rem 0.25rem 0; }
 th { border-bottom: 1px solid var(--rule); }
 
-/* the golden banana peel: one object, one hand at a time */
-.peel-box {
-  border: 2px dashed var(--rule);
-  padding: 1rem;
-  margin: 1.25rem 0;
-  text-align: center;
-}
-.peel-box p { margin: 0.35rem 0 0 0; }
-.peel-box .peel { font-size: 3rem; line-height: 1.2; }
-.peel-box.free .peel { opacity: 0.45; }
-
 /* the bin: slop goes in, verdicts come out */
+.throw { margin: 1.5rem 0; }
+.home .throw input[type=url] { max-width: 28rem; padding: 0.5rem; font-size: 1rem; }
+.home .throw button { padding: 0.5rem 1.4rem; font-size: 1rem; }
 input[type=url] {
   font: inherit;
   color: var(--ink);

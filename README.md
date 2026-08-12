@@ -54,7 +54,7 @@ credentials of the maintainer, not from a copy of the repository.
 ## Parts
 
 - **Cloudflare Workers**: the full application is one worker
-- **D1** (SQLite): the users, the sessions, the posts, and the slop
+- **D1** (SQLite): the users, the sessions, and the slop
 - **Browser Rendering** (the `BROWSER` binding): photographs the slop
 - **Workers AI + AI Gateway** (the `AI` binding, gateway `slopbin`): the verdicts
 - **R2** (bucket `slopbin-shots`): the screenshots, one JPEG per slop

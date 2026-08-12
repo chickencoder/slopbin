@@ -60,17 +60,12 @@ export function layout(opts: {
   const { title, body, username } = opts;
   const nav = username
     ? `<nav>
-        <a href="/bin">the bin</a>
-        <a href="/feed">chatter</a>
-        <a href="/peel">the peel</a>
         <a href="/leaderboard">leaderboard</a>
         <a href="/u/${esc(username)}">${esc(username)}</a>
         <a href="/settings">settings</a>
       </nav>`
     : `<nav>
-        <a href="/bin">the bin</a>
         <a href="/leaderboard">leaderboard</a>
-        <a href="/how">contribute</a>
         <a href="/login">log in</a>
       </nav>`;
 
