@@ -61,7 +61,9 @@ export async function screenshotSlop(env: SlopEnv, url: string): Promise<ArrayBu
       url,
       viewport: { width: 1024, height: 768 },
       screenshotOptions: { type: "jpeg", quality: 70 },
-      gotoOptions: { waitUntil: "domcontentloaded", timeout: 15000 },
+      // networkidle2, not networkidle0: submitted pages can hold sockets
+      // open (analytics, long-polling) and would never reach idle-0.
+      gotoOptions: { waitUntil: "networkidle2", timeout: 15000 },
     });
     if (!res.ok) return null;
     const bytes = await res.arrayBuffer();
