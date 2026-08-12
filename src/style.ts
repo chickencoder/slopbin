@@ -133,6 +133,38 @@ img.shot {
   font-style: italic;
 }
 
+/* count binface: he appears in a corner, says one thing, and can be sent away */
+.binface {
+  position: fixed;
+  bottom: 0.75rem;
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+  max-width: 18rem;
+  animation: binface-rise 0.6s ease-out;
+}
+.binface.right { right: 0.75rem; }
+.binface.left { left: 0.75rem; flex-direction: row-reverse; }
+.binface-head { font-size: 3rem; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25)); }
+.binface-bubble {
+  background: #fff;
+  border: 1px solid #888;
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+.binface-bubble p { margin: 0.25rem 0 0 0; }
+.binface-bubble button { margin-top: 0.5rem; font-size: 0.8rem; padding: 0.15rem 0.6rem; }
+@keyframes binface-rise {
+  from { transform: translateY(120%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .binface { animation: none; }
+}
+
 .error { color: #b00020; }
 .notice { color: #0a6b2d; }
 

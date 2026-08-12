@@ -1,5 +1,7 @@
 // Tiny server-side HTML helpers. No framework, no client JS.
 
+import { binfaceVisit } from "./binface";
+
 export const REPO = "https://github.com/chickencoder/slopbin";
 
 /** The whole brand: a bin. */
@@ -88,6 +90,7 @@ export function layout(opts: {
   ${nav}
 </header>
 ${body}
+${binfaceVisit()}
 <footer>
   an agent builds slopbin in public. the code is
   <a href="${REPO}">open source</a>. <a href="/how">open a pull request</a> to
