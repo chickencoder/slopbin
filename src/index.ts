@@ -357,7 +357,10 @@ app.get("/slop/:id", async (c) => {
 <div id="verdict" class="verdict">
   <p class="faint">the bin says:</p>
   <blockquote>${esc(slop.verdict)}</blockquote>
-  <p class="faint"><a href="/">back to the bin</a> &middot; verdict by a very cheap model. the bin stands by it anyway.</p>
+  <p class="faint"><a href="/">back to the bin</a>
+  <span id="replayrow" hidden>&middot; <a href="#" id="replay">throw it again</a></span>
+  <span id="dlrow" hidden>&middot; <a href="#" id="dl">download the toss (video)</a></span>
+  &middot; verdict by a very cheap model. the bin stands by it anyway.</p>
 </div>
 <script type="module">
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
@@ -441,8 +444,10 @@ try {
   }
 
   const ease = (k) => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
-  const clock = new THREE.Clock();
+  let t0 = performance.now();
+  let raf = 0;
   let revealed = false;
+  let recorder = null;
 
   // the script of the play:
   //   0.0 - 1.2s  the page flutters, unaware
@@ -450,7 +455,7 @@ try {
   //   2.6 - 3.6s  the throw, a clean arc into the bin
   //   3.6s +      the bin wobbles, the verdict appears
   function animate() {
-    const t = clock.getElapsedTime();
+    const t = (performance.now() - t0) / 1000;
 
     const k = ease((t - 1.2) / 1.4);
     for (let i = 0; i < pos.count; i++) {
@@ -465,8 +470,8 @@ try {
     if (f > 0 && paper.visible) {
       paper.position.x = -0.5 + (bin.position.x + 0.5) * f;
       paper.position.y = 0.35 + (-1.1 - 0.35) * f + Math.sin(f * Math.PI) * 1.2;
-      paper.rotation.z -= 0.13;
-      paper.rotation.x -= 0.07;
+      paper.rotation.z = -7.8 * f;
+      paper.rotation.x = -4.2 * f;
       paper.scale.setScalar(1 - 0.3 * f);
     }
     if (f >= 1) {
@@ -476,9 +481,58 @@ try {
     }
 
     renderer.render(scene, camera);
-    if (t < 6.5) requestAnimationFrame(animate);
+    if (t < 6.5) {
+      raf = requestAnimationFrame(animate);
+    } else if (recorder && recorder.state === "recording") {
+      recorder.stop();
+    }
   }
-  requestAnimationFrame(animate);
+
+  /** Rewind the play to the first scene and run it again. */
+  function play() {
+    cancelAnimationFrame(raf);
+    paper.visible = true;
+    paper.rotation.set(0, 0, 0);
+    paper.scale.setScalar(1);
+    paper.position.set(-0.5, 0.35, 0);
+    bin.rotation.z = 0;
+    t0 = performance.now();
+    raf = requestAnimationFrame(animate);
+  }
+  play();
+
+  // throw it again, for free
+  const replay = document.getElementById("replay");
+  document.getElementById("replayrow").hidden = false;
+  replay.addEventListener("click", (e) => { e.preventDefault(); if (!recorder) play(); });
+
+  // download the toss: replay the play while MediaRecorder films the canvas
+  const dl = document.getElementById("dl");
+  const mime = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find(
+    (m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m)
+  );
+  if (mime && renderer.domElement.captureStream) {
+    document.getElementById("dlrow").hidden = false;
+    dl.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (recorder) return; // one film at a time
+      dl.textContent = "filming the toss...";
+      const chunks = [];
+      recorder = new MediaRecorder(renderer.domElement.captureStream(30), { mimeType: mime });
+      recorder.ondataavailable = (ev) => { if (ev.data.size) chunks.push(ev.data); };
+      recorder.onstop = () => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob(chunks, { type: mime }));
+        a.download = "slopbin-exhibit-${slop.id}." + (mime.startsWith("video/mp4") ? "mp4" : "webm");
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        recorder = null;
+        dl.textContent = "download the toss (video)";
+      };
+      recorder.start();
+      play();
+    });
+  }
 } catch (e) {
   reveal(); // no WebGL, no theatre. the verdict works without the toss.
 }

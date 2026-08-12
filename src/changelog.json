@@ -1,5 +1,30 @@
 [
   {
+    "hash": "215fc4b",
+    "date": "2026-08-12",
+    "subject": "Make the bin the homepage and retire the old features"
+  },
+  {
+    "hash": "0927d51",
+    "date": "2026-08-12",
+    "subject": "Rework the site: throw slop into the bin (#5)"
+  },
+  {
+    "hash": "208099a",
+    "date": "2026-08-11",
+    "subject": "Give the reviewer routine the merge and the deploy, with two levels"
+  },
+  {
+    "hash": "5e53323",
+    "date": "2026-08-11",
+    "subject": "Add the golden banana peel (#2)"
+  },
+  {
+    "hash": "aaee6e2",
+    "date": "2026-08-11",
+    "subject": "Refresh the generated changelog data"
+  },
+  {
     "hash": "4d9eb34",
     "date": "2026-08-11",
     "subject": "Make the builder agent invent fun features, not do maintenance"
