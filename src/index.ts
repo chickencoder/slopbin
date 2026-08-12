@@ -10,7 +10,7 @@ import {
   type SessionUser,
 } from "./auth";
 import changelog from "./changelog.json";
-import { duration, esc, isoTime, layout, LOGO, REPO, timeAgo } from "./html";
+import { duration, esc, isoTime, layout, LOGO, ORIGIN, REPO, timeAgo } from "./html";
 import { checkSlopUrl, judgeSlop, screenshotSlop, type SlopEnv } from "./slop";
 import { CSS } from "./style";
 
@@ -316,6 +316,124 @@ app.get("/slop/:id/shot.jpg", async (c) => {
   });
 });
 
+// The social card: a 1200x630 page that exists only to be photographed.
+// Link crawlers never see it; they see /slop/:id/og.jpg, which is a
+// screenshot of this page.
+app.get("/slop/:id/card", async (c) => {
+  const id = Number(c.req.param("id"));
+  const slop =
+    Number.isSafeInteger(id) && id > 0
+      ? await c.env.DB.prepare(
+          `SELECT s.id, s.url, s.verdict, s.has_shot, s.created_at, u.username
+           FROM slops s JOIN users u ON u.id = s.user_id WHERE s.id = ?`
+        )
+          .bind(id)
+          .first<SlopRow>()
+      : null;
+  if (!slop) return c.notFound();
+
+  const shot = slop.has_shot
+    ? `<img class="cardshot" src="/slop/${slop.id}/shot.jpg" alt="">`
+    : `<div class="cardshot cardnoshot">no photograph.<br>the page ran from the camera.</div>`;
+
+  return c.html(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+* { margin: 0; box-sizing: border-box; }
+body {
+  width: 1200px; height: 630px; overflow: hidden;
+  background: #cfd3d7;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  display: flex; align-items: center; gap: 48px; padding: 48px;
+}
+.cardshot {
+  width: 560px; height: 420px; object-fit: cover; object-position: top;
+  background: #fff; border: 1px solid #999;
+  transform: rotate(-2deg);
+  box-shadow: 8px 10px 0 rgba(0,0,0,.15);
+  flex: none;
+}
+.cardnoshot {
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; color: #666; font-size: 28px;
+}
+.side { min-width: 0; }
+h1 { font-size: 44px; margin-bottom: 8px; }
+.who { font-size: 26px; color: #444; margin-bottom: 28px; }
+blockquote {
+  font-size: 30px; line-height: 1.35; color: #111;
+  border-left: 6px solid #555; padding-left: 20px;
+  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.brand { position: fixed; right: 44px; bottom: 32px; font-size: 30px; color: #222; }
+</style>
+</head>
+<body>
+${shot}
+<div class="side">
+  <h1>${LOGO} exhibit #${slop.id}</h1>
+  <p class="who">${esc(slop.username)} binned ${esc(slopHost(slop.url))}</p>
+  <blockquote>${esc(slop.verdict)}</blockquote>
+</div>
+<div class="brand">${LOGO} slopbin.com</div>
+</body>
+</html>`);
+});
+
+// The dynamic og image: Browser Rendering photographs the card page one
+// time, R2 keeps the photograph, and every crawler after that gets the
+// copy from R2.
+app.get("/slop/:id/og.jpg", async (c) => {
+  const id = Number(c.req.param("id"));
+  if (!Number.isSafeInteger(id) || id <= 0) return c.notFound();
+
+  const headers = {
+    "Content-Type": "image/jpeg",
+    "Cache-Control": "public, max-age=31536000, immutable",
+  };
+
+  const key = `og/${id}.jpg`;
+  if (c.env.SHOTS) {
+    const cached = await c.env.SHOTS.get(key);
+    if (cached) return c.body(cached.body, 200, headers);
+  }
+
+  const slop = await c.env.DB.prepare("SELECT id, has_shot FROM slops WHERE id = ?")
+    .bind(id)
+    .first<{ id: number; has_shot: number }>();
+  if (!slop) return c.notFound();
+
+  if (c.env.BROWSER) {
+    try {
+      const res = await c.env.BROWSER.quickAction("screenshot", {
+        url: new URL(c.req.url).origin + `/slop/${id}/card`,
+        viewport: { width: 1200, height: 630 },
+        screenshotOptions: { type: "jpeg", quality: 80 },
+        gotoOptions: { waitUntil: "networkidle0", timeout: 15000 },
+      });
+      if (res.ok) {
+        const bytes = await res.arrayBuffer();
+        if (bytes.byteLength > 0) {
+          if (c.env.SHOTS) await c.env.SHOTS.put(key, bytes);
+          return c.body(bytes, 200, headers);
+        }
+      }
+    } catch {
+      // the camera failed. fall through to the plain screenshot.
+    }
+  }
+
+  // No card photograph. The plain screenshot of the slop is the card.
+  if (slop.has_shot && c.env.SHOTS) {
+    const shotObj = await c.env.SHOTS.get(`shots/${id}.jpg`);
+    if (shotObj) return c.body(shotObj.body, 200, headers);
+  }
+  return c.notFound();
+});
+
 // The theatre: every visit replays the scrunch and the throw, then the
 // verdict appears. Without JavaScript or WebGL the verdict is simply there.
 app.get("/slop/:id", async (c) => {
@@ -360,6 +478,7 @@ app.get("/slop/:id", async (c) => {
   <p class="faint"><a href="/">back to the bin</a>
   <span id="replayrow" hidden>&middot; <a href="#" id="replay">throw it again</a></span>
   <span id="dlrow" hidden>&middot; <a href="#" id="dl">download the toss (video)</a></span>
+  &middot; permalink: <a href="${ORIGIN}/slop/${slop.id}">slopbin.com/slop/${slop.id}</a>
   &middot; verdict by a very cheap model. the bin stands by it anyway.</p>
 </div>
 <script type="module">
@@ -383,6 +502,8 @@ try {
   stage.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
+  // gray stage. most slop is a white page, and white on white is invisible.
+  scene.background = new THREE.Color(0xb8bec4);
   const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 100);
   camera.position.set(0, 0.6, 6);
   camera.lookAt(0, -0.5, 0);
@@ -406,6 +527,24 @@ try {
   bin.add(bodyM, bottom, rim);
   bin.position.set(1.7, -1.5, 0);
   scene.add(bin);
+
+  // the address, painted on the stage floor. a downloaded video keeps it,
+  // and the video tells its viewers where the bin is.
+  const wmCanvas = document.createElement("canvas");
+  wmCanvas.width = 512; wmCanvas.height = 128;
+  const wg = wmCanvas.getContext("2d");
+  wg.font = "bold 64px monospace";
+  wg.textAlign = "left";
+  wg.textBaseline = "middle";
+  wg.fillStyle = "rgba(35, 40, 45, 0.8)";
+  wg.fillText("slopbin.com", 8, 64);
+  const wmTexture = new THREE.CanvasTexture(wmCanvas);
+  const wm = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.7, 0.425),
+    new THREE.MeshBasicMaterial({ map: wmTexture, transparent: true })
+  );
+  wm.position.set(-1.9, -2.1, 0.5);
+  scene.add(wm);
 
   // the sheet of slop: a plane that will regret being printed
   const geo = new THREE.PlaneGeometry(2.8, 1.85, 28, 20);
@@ -539,7 +678,16 @@ try {
 </script>
 `;
   return c.html(
-    layout({ title: `exhibit #${slop.id}`, body, username: viewer?.username })
+    layout({
+      title: `exhibit #${slop.id} · slopbin`,
+      body,
+      username: viewer?.username,
+      og: {
+        path: `/slop/${slop.id}`,
+        image: `/slop/${slop.id}/og.jpg`,
+        description: slop.verdict,
+      },
+    })
   );
 });
 

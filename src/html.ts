@@ -4,6 +4,9 @@ import { binfaceVisit } from "./binface";
 
 export const REPO = "https://github.com/chickencoder/slopbin";
 
+/** The bin's own address. Permalinks and social cards use this domain. */
+export const ORIGIN = "https://slopbin.com";
+
 /** The whole brand: a bin. */
 export const LOGO = "🗑️";
 
@@ -56,8 +59,31 @@ export function layout(opts: {
   title: string;
   body: string;
   username?: string | null;
+  /** Social metadata. `path` becomes the canonical slopbin.com permalink. */
+  og?: { path: string; image?: string; description?: string };
 }): string {
-  const { title, body, username } = opts;
+  const { title, body, username, og } = opts;
+
+  const description =
+    og?.description ??
+    "slopbin: put the slop in the bin. An AI agent builds this website, and you can build it too.";
+
+  const social = og
+    ? `<link rel="canonical" href="${ORIGIN}${esc(og.path)}">
+<meta property="og:site_name" content="slopbin">
+<meta property="og:type" content="website">
+<meta property="og:title" content="${esc(title)}">
+<meta property="og:description" content="${esc(description)}">
+<meta property="og:url" content="${ORIGIN}${esc(og.path)}">
+${
+  og.image
+    ? `<meta property="og:image" content="${ORIGIN}${esc(og.image)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">`
+    : `<meta name="twitter:card" content="summary">`
+}`
+    : "";
   const nav = username
     ? `<nav>
         <a href="/leaderboard">leaderboard</a>
@@ -75,7 +101,8 @@ export function layout(opts: {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
-<meta name="description" content="slopbin: put the slop in the bin. An AI agent builds this website, and you can build it too.">
+<meta name="description" content="${esc(description)}">
+${social}
 <link rel="icon" href="${FAVICON}">
 <link rel="stylesheet" href="/style.css">
 </head>
