@@ -68,6 +68,9 @@ export function layout(opts: {
     og?.description ??
     "slopbin: put the slop in the bin. An AI agent builds this website, and you can build it too.";
 
+  // WhatsApp is the pickiest reader: it wants og:title, og:description,
+  // an absolute https og:image with type and dimensions, and an image
+  // well under 300 KB. The cards are 1200x630 jpegs, safely under it.
   const social = og
     ? `<link rel="canonical" href="${ORIGIN}${esc(og.path)}">
 <meta property="og:site_name" content="slopbin">
@@ -75,12 +78,18 @@ export function layout(opts: {
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${ORIGIN}${esc(og.path)}">
+<meta name="twitter:title" content="${esc(title)}">
+<meta name="twitter:description" content="${esc(description)}">
 ${
   og.image
     ? `<meta property="og:image" content="${ORIGIN}${esc(og.image)}">
+<meta property="og:image:secure_url" content="${ORIGIN}${esc(og.image)}">
+<meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta name="twitter:card" content="summary_large_image">`
+<meta property="og:image:alt" content="${esc(title)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="${ORIGIN}${esc(og.image)}">`
     : `<meta name="twitter:card" content="summary">`
 }`
     : "";

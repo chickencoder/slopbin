@@ -81,7 +81,7 @@ ${items}
 your hand finds one random exhibit.</p>
 </div>
 `;
-  return c.html(layout({ title: "slopbin", body, username: user?.username }));
+  return c.html(layout({ title: "slopbin", body, username: user?.username, og: { path: "/", image: "/og.jpg" } }));
 });
 
 // ---- how it works / contributing ----
@@ -106,7 +106,7 @@ app.get("/how", (c) => {
 </ul>
 <p>read <a href="${REPO}/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for more data.</p>
 `;
-  return c.html(layout({ title: "how it works", body, username: user?.username }));
+  return c.html(layout({ title: "how it works", body, username: user?.username, og: { path: "/how", image: "/og.jpg", description: "how to change slopbin: copy the repository, make a change, open a pull request." } }));
 });
 
 // ---- auth: github oauth ----
@@ -118,7 +118,7 @@ app.get("/login", (c) => {
 <p>a slopbin account is a github account. the first log in makes your account.</p>
 <p><a href="/auth/github">log in with github &raquo;</a></p>
 `;
-  return c.html(layout({ title: "log in", body }));
+  return c.html(layout({ title: "log in", body, og: { path: "/login", image: "/og.jpg" } }));
 });
 
 // There is no separate signup any more; github is the whole door.
@@ -316,6 +316,83 @@ app.get("/slop/:id/shot.jpg", async (c) => {
   });
 });
 
+/** Photograph a 1200x630 card page with Browser Rendering. Null on failure. */
+async function photographCard(env: Env, origin: string, path: string): Promise<ArrayBuffer | null> {
+  if (!env.BROWSER) return null;
+  try {
+    const res = await env.BROWSER.quickAction("screenshot", {
+      url: origin + path,
+      viewport: { width: 1200, height: 630 },
+      screenshotOptions: { type: "jpeg", quality: 80 },
+      gotoOptions: { waitUntil: "networkidle0", timeout: 15000 },
+    });
+    if (!res.ok) return null;
+    const bytes = await res.arrayBuffer();
+    return bytes.byteLength > 0 ? bytes : null;
+  } catch {
+    return null;
+  }
+}
+
+// The site's own social card, for every page that is not one exhibit.
+app.get("/card", async (c) => {
+  const total = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM slops").first<{ n: number }>();
+  const n = total?.n ?? 0;
+  return c.html(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+* { margin: 0; box-sizing: border-box; }
+body {
+  width: 1200px; height: 630px; overflow: hidden;
+  background: #cfd3d7;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; gap: 18px;
+}
+.logo { font-size: 150px; line-height: 1; }
+h1 { font-size: 84px; }
+.tagline { font-size: 36px; color: #333; }
+.count { font-size: 28px; color: #555; }
+.brand { position: fixed; right: 44px; bottom: 32px; font-size: 30px; color: #222; }
+</style>
+</head>
+<body>
+<div class="logo">${LOGO}</div>
+<h1>slopbin</h1>
+<p class="tagline">put the slop in the bin.</p>
+<p class="count">${n} exhibit${n === 1 ? "" : "s"} in the bin so far</p>
+<div class="brand">slopbin.com</div>
+</body>
+</html>`);
+});
+
+// The site og image. R2 keeps one copy for a day, because the exhibit
+// count on the card moves.
+app.get("/og.jpg", async (c) => {
+  const headers = {
+    "Content-Type": "image/jpeg",
+    "Cache-Control": "public, max-age=86400",
+  };
+  const key = "og/site.jpg";
+
+  const cached = c.env.SHOTS ? await c.env.SHOTS.get(key) : null;
+  if (cached && Date.now() - cached.uploaded.getTime() < 86400_000) {
+    return c.body(cached.body, 200, headers);
+  }
+
+  const bytes = await photographCard(c.env, new URL(c.req.url).origin, "/card");
+  if (bytes) {
+    if (c.env.SHOTS) await c.env.SHOTS.put(key, bytes);
+    return c.body(bytes, 200, headers);
+  }
+
+  // the camera failed today. a stale card is better than no card.
+  if (cached) return c.body(cached.body, 200, headers);
+  return c.notFound();
+});
+
 // The social card: a 1200x630 page that exists only to be photographed.
 // Link crawlers never see it; they see /slop/:id/og.jpg, which is a
 // screenshot of this page.
@@ -406,24 +483,10 @@ app.get("/slop/:id/og.jpg", async (c) => {
     .first<{ id: number; has_shot: number }>();
   if (!slop) return c.notFound();
 
-  if (c.env.BROWSER) {
-    try {
-      const res = await c.env.BROWSER.quickAction("screenshot", {
-        url: new URL(c.req.url).origin + `/slop/${id}/card`,
-        viewport: { width: 1200, height: 630 },
-        screenshotOptions: { type: "jpeg", quality: 80 },
-        gotoOptions: { waitUntil: "networkidle0", timeout: 15000 },
-      });
-      if (res.ok) {
-        const bytes = await res.arrayBuffer();
-        if (bytes.byteLength > 0) {
-          if (c.env.SHOTS) await c.env.SHOTS.put(key, bytes);
-          return c.body(bytes, 200, headers);
-        }
-      }
-    } catch {
-      // the camera failed. fall through to the plain screenshot.
-    }
+  const bytes = await photographCard(c.env, new URL(c.req.url).origin, `/slop/${id}/card`);
+  if (bytes) {
+    if (c.env.SHOTS) await c.env.SHOTS.put(key, bytes);
+    return c.body(bytes, 200, headers);
   }
 
   // No card photograph. The plain screenshot of the slop is the card.
@@ -478,6 +541,7 @@ app.get("/slop/:id", async (c) => {
   <p class="faint"><a href="/">back to the bin</a>
   <span id="replayrow" hidden>&middot; <a href="#" id="replay">throw it again</a></span>
   <span id="dlrow" hidden>&middot; <a href="#" id="dl">download the toss (video)</a></span>
+  <span id="gifrow" hidden>&middot; <a href="#" id="gif">download the toss (gif)</a></span>
   &middot; permalink: <a href="${ORIGIN}/slop/${slop.id}">slopbin.com/slop/${slop.id}</a>
   &middot; verdict by a very cheap model. the bin stands by it anyway.</p>
 </div>
@@ -605,6 +669,7 @@ try {
   let raf = 0;
   let revealed = false;
   let recorder = null;
+  let gif = null; // while filming a gif: { g, frames, last, w, h }
 
   // the script of the play:
   //   0.0 - 1.1s  the opening shot: the photograph, full frame
@@ -642,10 +707,19 @@ try {
     }
 
     renderer.render(scene, camera);
+
+    // filming a gif: keep 12 frames per second, small
+    if (gif && t - gif.last >= 1 / 12) {
+      gif.last = t;
+      gif.g.drawImage(renderer.domElement, 0, 0, gif.w, gif.h);
+      gif.frames.push(gif.g.getImageData(0, 0, gif.w, gif.h).data);
+    }
+
     if (t < 6.5) {
       raf = requestAnimationFrame(animate);
-    } else if (recorder && recorder.state === "recording") {
-      recorder.stop();
+    } else {
+      if (recorder && recorder.state === "recording") recorder.stop();
+      if (gif) { const job = gif; gif = null; encodeGif(job); }
     }
   }
 
@@ -665,18 +739,22 @@ try {
   // throw it again, for free
   const replay = document.getElementById("replay");
   document.getElementById("replayrow").hidden = false;
-  replay.addEventListener("click", (e) => { e.preventDefault(); if (!recorder) play(); });
+  replay.addEventListener("click", (e) => { e.preventDefault(); if (!recorder && !gif) play(); });
 
-  // download the toss: replay the play while MediaRecorder films the canvas
+  // download the toss: replay the play while MediaRecorder films the canvas.
+  // mp4 first, because mp4 pastes into every chat app. webm is the fallback.
   const dl = document.getElementById("dl");
-  const mime = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find(
-    (m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m)
-  );
+  const mime = [
+    "video/mp4;codecs=avc1.42E01E",
+    "video/mp4",
+    "video/webm;codecs=vp9",
+    "video/webm",
+  ].find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
   if (mime && renderer.domElement.captureStream) {
     document.getElementById("dlrow").hidden = false;
     dl.addEventListener("click", (e) => {
       e.preventDefault();
-      if (recorder) return; // one film at a time
+      if (recorder || gif) return; // one film at a time
       dl.textContent = "filming the toss...";
       const chunks = [];
       recorder = new MediaRecorder(renderer.domElement.captureStream(30), { mimeType: mime });
@@ -693,6 +771,44 @@ try {
       recorder.start();
       play();
     });
+  }
+
+  // download as gif: the same replay, but each frame goes into a gif
+  // encoder. a gif needs no codec luck and pastes into anything.
+  const gifLink = document.getElementById("gif");
+  document.getElementById("gifrow").hidden = false;
+  gifLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (recorder || gif) return; // one film at a time
+    gifLink.textContent = "filming the gif...";
+    const w = 480, h = Math.round((480 * H) / W);
+    const cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    gif = { g: cv.getContext("2d", { willReadFrequently: true }), frames: [], last: -1, w, h };
+    play();
+  });
+
+  async function encodeGif(job) {
+    gifLink.textContent = "wrapping the gif...";
+    try {
+      const { GIFEncoder, quantize, applyPalette } = await import(
+        "https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js"
+      );
+      const enc = GIFEncoder();
+      for (const frame of job.frames) {
+        const palette = quantize(frame, 256);
+        enc.writeFrame(applyPalette(frame, palette), job.w, job.h, { palette, delay: 83 });
+      }
+      enc.finish();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([enc.bytes()], { type: "image/gif" }));
+      a.download = "slopbin-exhibit-${slop.id}.gif";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (err) {
+      // the encoder did not arrive or did not encode. the link resets.
+    }
+    gifLink.textContent = "download the toss (gif)";
   }
 } catch (e) {
   reveal(); // no WebGL, no theatre. the verdict works without the toss.
@@ -756,7 +872,7 @@ for ${duration(now() - slop.created_at)}.</p>
 </div>
 <p><a href="/dive">throw it back and dive again &raquo;</a> &middot; <a href="/">back to the bin</a></p>
 `;
-  return c.html(layout({ title: "the dive", body, username: viewer?.username }));
+  return c.html(layout({ title: "the dive", body, username: viewer?.username, og: { path: "/dive", image: "/og.jpg", description: "dive into the bin and your hand finds one random exhibit." } }));
 });
 
 // The golden banana peel is retired. Its history stays in the database.
@@ -794,7 +910,7 @@ app.get("/u/:username", async (c) => {
 <hr>
 ${results.length ? results.map(slopCard).join("\n") : `<p class="faint">${esc(profile.username)} has not binned any slop yet.</p>`}
 `;
-  return c.html(layout({ title: profile.username, body, username: viewer?.username }));
+  return c.html(layout({ title: `${profile.username} \u00b7 slopbin`, body, username: viewer?.username, og: { path: `/u/${profile.username}`, image: "/og.jpg", description: `the slop that ${profile.username} threw into the bin.` } }));
 });
 
 // ---- leaderboard ----
@@ -822,7 +938,7 @@ ${
     : `<p class="faint">no pull request is merged at this time. <a href="/how">you can be the first</a>.</p>`
 }
 `;
-  return c.html(layout({ title: "leaderboard", body, username: viewer?.username }));
+  return c.html(layout({ title: "leaderboard", body, username: viewer?.username, og: { path: "/leaderboard", image: "/og.jpg", description: "the users who changed slopbin the most, one point per merged pull request." } }));
 });
 
 // ---- changelog ----
@@ -845,7 +961,7 @@ this list from the git history. thus the list shows the version that operates
 now.</p>
 ${items || `<p class="faint">there is no history at this time.</p>`}
 `;
-  return c.html(layout({ title: "changelog", body, username: viewer?.username }));
+  return c.html(layout({ title: "changelog", body, username: viewer?.username, og: { path: "/changelog", image: "/og.jpg", description: "each new version of slopbin, in public, straight from the git history." } }));
 });
 
 // ---- settings ----
